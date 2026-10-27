@@ -7,6 +7,7 @@ import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
 import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, defaultCaptureId } from "./audio.ts";
 import { LoopRunner } from "./measure/loop.ts";
+import { parseMicCal, type MicCal, type CalProvenance } from "./measure/miccal.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -15,6 +16,7 @@ const pubDir = join(root, "public");
 
 let device: DspDevice | null = null;
 let loop: LoopRunner | null = null;
+let micCal: { cal: MicCal; prov: CalProvenance } | null = null;
 
 const CHAN_NAMES: Record<string, number> = {
   ina: 0, inb: 1, inc: 2, ind: 3,
@@ -238,6 +240,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
         maxIter: Math.max(0, Math.min(200, Number(body?.maxIter ?? 6))),
         playbackId: body?.playbackId,
         captureId: body?.captureId ?? (await defaultCaptureId()),
+        getCal: () => micCal,
       });
       void loop.run();
       json(res, 200, { ok: true });
@@ -251,6 +254,23 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   },
   "GET /api/loop/state": async (_req, res) => {
     json(res, 200, loop ? loop.snapshot() : { running: false, timeline: [] });
+  },
+  "POST /api/miccal/load": async (_req, res, body) => {
+    try {
+      const fileName = String(body?.fileName ?? "upload.txt");
+      const content = String(body?.content ?? "");
+      if (!content) throw new Error("empty calibration file");
+      const orientation = body?.orientation === "90" ? "90°" : body?.orientation === "0" ? "0°" : "unknown";
+      const { cal, warnings } = parseMicCal(content, fileName, body?.expectedSerial ? String(body.expectedSerial) : undefined);
+      const prov: CalProvenance = { fileName, serial: cal.serial, orientation, sensDb: cal.sensDb };
+      micCal = { cal, prov };
+      json(res, 200, { prov, warnings });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
+  },
+  "GET /api/miccal/status": async (_req, res) => {
+    json(res, 200, micCal ? { loaded: true, prov: micCal.prov } : { loaded: false });
   },
   "GET /api/audio/devices": async (_req, res) => {
     const devs = await listAudioDevices();

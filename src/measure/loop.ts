@@ -22,6 +22,7 @@ import {
   type Candidate,
   type Scored,
 } from "./objective.ts";
+import { applyCal, type MicCal, type CalProvenance } from "./miccal.ts";
 
 export interface LoopConfig {
   fStart: number;
@@ -30,6 +31,7 @@ export interface LoopConfig {
   maxIter: number;
   playbackId?: string;
   captureId?: string;
+  getCal?: () => { cal: MicCal; prov: CalProvenance } | null;
 }
 
 export interface TimelineEntry {
@@ -38,15 +40,17 @@ export interface TimelineEntry {
   candidate: Candidate;
   scored: Scored;
   pareto: boolean;
+  cal: CalProvenance | null;
   response: { freqs: number[]; db: number[] };
 }
 
 export interface LoopSnapshot {
   running: boolean;
-  config: LoopConfig;
+  config: Omit<LoopConfig, "getCal">;
   baseline: Scored | null;
   timeline: TimelineEntry[];
   bestIter: number;
+  cal: CalProvenance | null;
 }
 
 export class LoopRunner {
@@ -71,11 +75,14 @@ export class LoopRunner {
         bestIter = i;
       }
     });
+    const { getCal, ...cfg } = this.config;
+    void getCal;
     return {
       running: this.running,
-      config: this.config,
+      config: cfg,
       baseline: this.baseline,
       bestIter,
+      cal: this.timeline.length ? (this.timeline[this.timeline.length - 1]!.cal ?? null) : null,
       timeline: this.timeline.map((t, i) => ({ ...t, pareto: flags[i] ?? false })),
     };
   }
@@ -84,7 +91,7 @@ export class LoopRunner {
     this.stopAsked = true;
   }
 
-  private async measure(c: Candidate): Promise<{ scored: Scored; response: TimelineEntry["response"] }> {
+  private async measure(c: Candidate): Promise<{ scored: Scored; prov: CalProvenance | null; response: TimelineEntry["response"] }> {
     const { fStart, fEnd, sweepSecs, playbackId, captureId } = this.config;
     const sweep = genESS(fStart / 2, Math.min(20000, fEnd * 2), sweepSecs);
     const stim = applyBiquads(sweep, c.bands, c.gainDb);
@@ -103,13 +110,15 @@ export class LoopRunner {
     const grid = logGrid(20, 20000, 480);
     const interp = interpLog(fr, grid);
     const smoothed = smoothOctave(grid, interp, 1 / 12);
+    const calEntry = this.config.getCal?.() ?? null;
+    const corrected = applyCal(grid, smoothed, calEntry?.cal ?? null);
     const keepDir = join(process.cwd(), "recordings");
     mkdirSync(keepDir, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     writeFileSync(join(keepDir, `loop-iter-${this.timeline.length}-${stamp}.wav`), readFileSync(recFile));
     const base = this.baseline?.mean ?? 0;
-    const scored = scoreResponse(grid, smoothed, fStart, fEnd, base);
-    return { scored, response: { freqs: [...grid], db: [...smoothed] } };
+    const scored = scoreResponse(grid, corrected, fStart, fEnd, base);
+    return { scored, prov: calEntry?.prov ?? null, response: { freqs: [...grid], db: [...corrected] } };
   }
 
   async run(): Promise<void> {
@@ -119,7 +128,7 @@ export class LoopRunner {
     try {
       const base = await this.measure({ bands: [], gainDb: 0 });
       this.baseline = { ...base.scored, loss: 0, cost: base.scored.flatness };
-      this.timeline.push({ iter: 0, kind: "baseline", candidate: { bands: [], gainDb: 0 }, scored: this.baseline, pareto: true, response: base.response });
+      this.timeline.push({ iter: 0, kind: "baseline", candidate: { bands: [], gainDb: 0 }, scored: this.baseline, pareto: true, cal: base.prov, response: base.response });
       const grid = Float32Array.from(base.response.freqs);
       const db = Float32Array.from(base.response.db);
       const first = initialCandidate(findPeaks(grid, db, this.config.fStart, this.config.fEnd, this.baseline.mean), this.config.fStart, this.config.fEnd);
@@ -133,7 +142,7 @@ export class LoopRunner {
           bestCost = m.scored.cost;
           best = JSON.parse(JSON.stringify(current));
         }
-        this.timeline.push({ iter, kind: large ? "mutation" : iter === 1 ? "initial" : "tweak", candidate: JSON.parse(JSON.stringify(current)), scored: m.scored, pareto: false, response: m.response });
+        this.timeline.push({ iter, kind: large ? "mutation" : iter === 1 ? "initial" : "tweak", candidate: JSON.parse(JSON.stringify(current)), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
       }
     } finally {
       this.running = false;

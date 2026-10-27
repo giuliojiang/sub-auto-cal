@@ -18,6 +18,12 @@ import {
   mutateCandidate,
   initialCandidate,
 } from "../src/measure/objective.ts";
+import {
+  parseMicCal,
+  calCorrection,
+  applyCal,
+  dbfsToSpl,
+} from "../src/measure/miccal.ts";
 
 describe("sweep and inverse", () => {
   it("convolving sweep with its inverse gives one impulse peak", () => {
@@ -138,6 +144,43 @@ describe("objective", () => {
     const c = initialCandidate(peaks, 100, 8000);
     assert.ok(validCandidate(c, 100, 8000));
     assert.ok(c.bands.every((b) => b.gainDb < 0));
+  });
+});
+
+describe("umik calibration file", () => {
+  const good = `"Sens Factor =-7.062dB, SERNO: 7001870"\n10.054\t-6.5726\n20.0\t-2.0\n50.0\t-1.0\n100.0\t0.0\n1000.0\t1.0\n10000.0\t2.0\n20000.0\t3.0\n`;
+  it("parses header, rows, and tabs", () => {
+    const { cal, warnings } = parseMicCal(good, "7001870.txt");
+    assert.equal(cal.sensDb, -7.062);
+    assert.equal(cal.serial, "7001870");
+    assert.equal(warnings.length, 0);
+    assert.equal(cal.freqs.length, 7);
+    const three = parseMicCal(`"Sens Factor =0dB, SERNO: 1"\n20 1.0 0.5\n` + Array.from({ length: 10 }, (_, i) => `${100 * (i + 1)} 1.0 0.0`).join("\n") + `\n20000 0.0 0.0\n`, "3col.txt");
+    assert.equal(three.cal.freqs.length, 12);
+  });
+  it("warns on serial mismatch instead of failing", () => {
+    const { warnings } = parseMicCal(good, "7001870.txt", "7009999");
+    assert.equal(warnings.length, 1);
+  });
+  it("rejects malformed, non-monotonic, and truncated files", () => {
+    assert.throws(() => parseMicCal("10\t1.0\n20\t2.0\n", "x.txt"), /sensitivity header/);
+    assert.throws(() => parseMicCal(`"Sens Factor =0dB, SERNO: 1"\n20\t1.0\n10\t2.0\n30\t3.0\n40\t4.0\n50\t5.0\n60\t6.0\n70\t7.0\n80\t8.0\n90\t9.0\n100\t10.0\n20000\t0.0\n`, "x.txt"), /not increasing/);
+    assert.throws(() => parseMicCal(`"Sens Factor =0dB, SERNO: 1"\n100\t1.0\n200\t2.0\n`, "x.txt"), /truncated/);
+    assert.throws(() => parseMicCal(`"Sens Factor =0dB, SERNO: 1"\n100\t1.0\n200\t2.0\n300\t3.0\n400\t4.0\n500\t5.0\n600\t6.0\n700\t7.0\n800\t8.0\n900\t9.0\n1000\t1.0\n1100\t1.0\n`, "x.txt"), /roughly 20Hz/);
+  });
+  it("interpolates on log axis, clamps ends, subtracts correction", () => {
+    const { cal } = parseMicCal(good, "7001870.txt");
+    assert.equal(calCorrection(cal, 100), 0);
+    assert.ok(Math.abs(calCorrection(cal, 5) - -6.5726) < 1e-4);
+    assert.ok(Math.abs(calCorrection(cal, 30000) - 3.0) < 1e-6);
+    const gm = Math.sqrt(100 * 1000);
+    assert.ok(Math.abs(calCorrection(cal, gm) - 0.5) < 0.01);
+    const out = applyCal(new Float32Array([100, 1000]), new Float32Array([0, 0]), cal);
+    assert.deepEqual([...out], [0, -1]);
+    assert.deepEqual([...applyCal(new Float32Array([100]), new Float32Array([5]), null)], [5]);
+  });
+  it("derives SPL from the sensitivity factor", () => {
+    assert.ok(Math.abs(dbfsToSpl(-7.062, -7.062) - 94) < 1e-9);
   });
 });
 

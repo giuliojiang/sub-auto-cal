@@ -65,11 +65,12 @@ function renderLoop(state) {
   $("loop-timeline").innerHTML = rows.length
     ? `<table><tr><th>iter</th><th>kind</th><th></th><th>F</th><th>mean</th><th>loss</th><th>J</th><th>filters</th></tr>${rows.join("")}</table>`
     : "";
+  const basis = state.cal ? `calibrated: ${state.cal.fileName} SERNO ${state.cal.serial} ${state.cal.orientation} (Sens ${state.cal.sensDb}dB)` : "uncalibrated dBFS — no mic file loaded";
   const best = state.timeline[state.bestIter];
   $("loop-best").innerHTML = best
     ? `<pre>best: iter ${best.iter} J=${best.scored.cost.toFixed(2)} (F=${best.scored.flatness.toFixed(2)} loss=${best.scored.loss.toFixed(2)})\n` +
       `filters: ${best.candidate.bands.map((b) => `${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB`).join(", ") || "none"}  gain ${best.candidate.gainDb.toFixed(1)}dB\n` +
-      `DSP deployment once speakers are wired.</pre>`
+      `${basis}\nDSP deployment once speakers are wired.</pre>`
     : "";
 }
 

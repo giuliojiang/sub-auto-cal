@@ -99,6 +99,14 @@
     </div>
     <pre id="audio-out">No measurement yet. The browser only triggers the check; playback and recording happen in the backend.</pre>
     <canvas id="wave" width="800" height="160"></canvas>
+    <h3>Microphone calibration (UMIK-1)</h3>
+    <div class="row">
+      <label>Calibration file <input id="mic-file" type="file" accept=".txt,.cal"></label>
+      <label>Orientation <select id="mic-orient"><option value="0">0° (point at speaker)</option><option value="90">90° (point at ceiling)</option></select></label>
+      <label>Expected serial <input id="mic-serial" type="text" placeholder="e.g. 700-1870"></label>
+      <button id="btn-mic">Load</button>
+      <span id="mic-status">no calibration file: results uncalibrated</span>
+    </div>
   </section>
   <section>
     <h2>Optimization loop</h2>

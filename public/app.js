@@ -107,6 +107,20 @@ function drawWave(peaks) {
     g.fillRect(i * bw, (cv.height - h) / 2, Math.max(1, bw - 0.5), h);
   });
 }
+$("btn-mic").onclick = async () => {
+  const f = $("mic-file").files[0];
+  if (!f) {
+    $("mic-status").textContent = "pick a file first";
+    return;
+  }
+  const content = await f.text();
+  try {
+    const r = await post("/api/miccal/load", { fileName: f.name, content, orientation: $("mic-orient").value, expectedSerial: $("mic-serial").value || undefined });
+    $("mic-status").textContent = `loaded ${r.prov.fileName} SERNO ${r.prov.serial} ${r.prov.orientation} Sens ${r.prov.sensDb}dB` + (r.warnings.length ? " — " + r.warnings.join("; ") : "");
+  } catch (e) {
+    $("mic-status").textContent = "rejected: " + e.message;
+  }
+};
 $("btn-noise").onclick = async () => {
   $("audio-out").textContent = "Playing and recording…";
   const r = await post("/api/audio/noise-check", {
