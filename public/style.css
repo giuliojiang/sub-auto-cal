@@ -111,6 +111,7 @@ canvas { display: block; }
 #wave, #loop-graph { margin-top: 0.5rem; }
 #peq-graph { margin: 0.5rem 0; touch-action: none; cursor: crosshair; }
 #peq-hint, #mic-status, #loop-status, #meters { font-size: 0.82rem; color: var(--muted); }
+#peq-notice { border: 1px dashed var(--accent-dim); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; color: var(--accent); }
 #loop-status { font-variant-numeric: tabular-nums; }
 .peq-row {
   display: flex; gap: 0.7rem; align-items: end; flex-wrap: wrap;

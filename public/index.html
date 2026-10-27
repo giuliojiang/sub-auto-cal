@@ -122,6 +122,7 @@
         </div>
         <span id="peq-hint">edits stage locally and preview on the graph — press Write to send them to the device</span>
       </div>
+      <div id="peq-notice">No device state — connect the DSP or simulator, then press Refresh.</div>
       <canvas id="peq-graph" width="800" height="260"></canvas>
       <div class="grid">
         <label>HPF Hz <input id="peq-hpf" type="number" step="any"></label>
@@ -130,7 +131,7 @@
         <label>LPF slope <select id="peq-lpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
         <button id="btn-peq-xo">Set crossovers</button>
       </div>
-      <div id="peq-bands"></div>
+      <div id="peq-bands" style="display:none"></div>
     </section>
   </div>
   <div class="tabpage" id="tab-calibrate">

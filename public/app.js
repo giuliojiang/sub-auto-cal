@@ -68,6 +68,7 @@ async function refreshState() {
     st = await api("/api/state");
   } catch (e) {
     $("channels").innerHTML = "<pre>refresh failed: " + e.message + "</pre>";
+    if (window.peqFailed) window.peqFailed();
     return;
   }
   $("version").textContent = st.version || "";

@@ -258,8 +258,19 @@ function fillPeq() {
 
 window.refreshPeq = function (st) {
   peqState = st;
+  document.getElementById("peq-notice").style.display = "none";
+  document.getElementById("peq-bands").style.display = "";
   fillPeq();
   drawPeq();
+};
+
+window.peqFailed = function () {
+  const n = document.getElementById("peq-notice");
+  n.style.display = "";
+  n.textContent = peqState
+    ? "Couldn't reach the device — showing last known values."
+    : "No device state — connect the DSP or simulator, then press Refresh.";
+  if (!peqState) document.getElementById("peq-bands").style.display = "none";
 };
 
 function peqNear(x, y) {
