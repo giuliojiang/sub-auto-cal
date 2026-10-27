@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sub-auto-cal</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>sub-auto-cal</h1>
+  <div id="conn">
+    <span id="status">disconnected</span>
+    <button id="btn-hw">Connect DSP</button>
+    <button id="btn-sim">Connect simulator</button>
+    <button id="btn-dc">Disconnect</button>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>Device state <small id="version"></small></h2>
+    <div class="row">
+      <button id="btn-refresh">Refresh</button>
+      <button id="btn-snap">Snapshot</button>
+      <button id="btn-revert">Revert</button>
+      <button id="btn-meters">Meters</button>
+      <span id="meters"></span>
+    </div>
+    <div id="channels"></div>
+  </section>
+  <section>
+    <h2>Output control</h2>
+    <div class="grid">
+      <label>Channel <select id="ctl-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option><option>InA</option><option>InB</option><option>InC</option><option>InD</option></select></label>
+      <label>Gain dB <input id="ctl-gain" type="number" step="0.5" value="-6"><button id="btn-gain">Set</button></label>
+      <label>Delay ms <input id="ctl-delay" type="number" step="0.1" value="0"><button id="btn-delay">Set</button></label>
+      <label>Route mask <input id="ctl-route" type="number" min="0" max="15" value="15"><button id="btn-route">Set</button></label>
+    </div>
+    <div class="grid">
+      <button id="btn-mute-on">Mute</button>
+      <button id="btn-mute-off">Unmute</button>
+      <button id="btn-pol-inv">Invert polarity</button>
+      <button id="btn-pol-norm">Normal polarity</button>
+    </div>
+    <h3>PEQ band</h3>
+    <div class="grid">
+      <label>Band <input id="peq-band" type="number" min="0" max="6" value="0"></label>
+      <label>Freq Hz <input id="peq-freq" type="number" step="any" value="100"></label>
+      <label>Q <input id="peq-q" type="number" step="any" value="1.4"></label>
+      <label>Gain dB <input id="peq-gain" type="number" step="any" value="-3"></label>
+      <label>Type <select id="peq-type"><option value="0">Peak</option><option value="1">Low shelf</option><option value="2">High shelf</option><option value="3">Low cut</option><option value="4">High cut</option><option value="5">Allpass1</option><option value="6">Allpass2</option></select></label>
+      <button id="btn-peq">Set PEQ</button>
+    </div>
+    <h3>Crossover</h3>
+    <div class="grid">
+      <label>Side <select id="xo-side"><option value="hpf">High-pass</option><option value="lpf">Low-pass</option></select></label>
+      <label>Freq Hz <input id="xo-freq" type="number" step="any" value="80"></label>
+      <label>Slope <select id="xo-slope"><option value="0">Bypass</option><option value="3">BW 12</option><option value="5">LR 12</option><option value="8">BW 24</option><option value="10">LR 24</option></select></label>
+      <button id="btn-xo">Set crossover</button>
+    </div>
+    <h3>DSP test signal</h3>
+    <div class="grid">
+      <label>Source <select id="sig-src"><option value="off">Off</option><option value="pink">Pink noise</option><option value="white">White noise</option><option value="sine">Sine</option></select></label>
+      <label>Sine Hz <input id="sig-freq" type="number" value="1000"></label>
+      <button id="btn-sig">Start / stop</button>
+    </div>
+  </section>
+  <section>
+    <h2>Audio level check</h2>
+    <div class="row">
+      <button id="btn-devs">List devices</button>
+      <label>Noise <select id="nz-kind"><option value="pink">Pink</option><option value="white">White</option></select></label>
+      <label>Seconds <input id="nz-sec" type="number" min="1" max="10" value="3"></label>
+      <button id="btn-noise">Play + record + check</button>
+    </div>
+    <pre id="audio-out">No measurement yet. The browser only triggers the check; playback and recording happen in the backend.</pre>
+  </section>
+  <section>
+    <h2>Write log</h2>
+    <pre id="history"></pre>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

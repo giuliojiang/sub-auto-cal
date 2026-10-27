@@ -1,0 +1,19 @@
+{
+  "name": "sub-auto-cal",
+  "version": "0.1.0",
+  "description": "Auto-calibration tool for the t.racks DSP 4x4 Mini",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "node-hid": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}
