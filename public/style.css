@@ -117,6 +117,11 @@ canvas { display: block; }
   padding: 0.4rem 0.2rem; border-top: 1px solid var(--line);
 }
 .peq-row strong { min-width: 1rem; color: var(--accent); }
+#peq-tabs { display: flex; gap: 0.25rem; }
+#peq-tabs button.active { background: var(--accent); border-color: var(--accent); color: #14161a; font-weight: 600; }
+.peq-row.bypassed { opacity: 0.55; }
+.peq-pill { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 20px; border: 1px solid var(--ok); color: var(--ok); white-space: nowrap; }
+.peq-row.bypassed .peq-pill { border-color: var(--muted); color: var(--muted); }
 #loop-timeline table { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 #loop-timeline td, #loop-timeline th { border: 1px solid var(--line); padding: 0.25rem 0.55rem; text-align: right; }
 #loop-timeline th { color: var(--muted); font-weight: 600; }

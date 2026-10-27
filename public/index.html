@@ -115,7 +115,9 @@
     <section>
       <h2>PEQ + crossover designer</h2>
       <div class="row">
-        <label>Output <select id="peq-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option></select></label>
+        <div id="peq-tabs" role="tablist">
+          <button data-out="Out1" class="active">Out1</button><button data-out="Out2">Out2</button><button data-out="Out3">Out3</button><button data-out="Out4">Out4</button>
+        </div>
         <span id="peq-hint">drag a point for frequency + gain, wheel over a point for Q, changes send on release</span>
       </div>
       <canvas id="peq-graph" width="800" height="260"></canvas>

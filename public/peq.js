@@ -74,8 +74,13 @@ function outTotal(out, f) {
   return s;
 }
 
+function peqChan() {
+  const el = document.querySelector("#peq-tabs button.active");
+  return el ? el.dataset.out : "Out1";
+}
+
 function peqOut() {
-  const idx = Number((document.getElementById("peq-chan").value || "Out1").replace("Out", "")) - 1;
+  const idx = Number(peqChan().replace("Out", "")) - 1;
   return peqState.outputs[idx];
 }
 
@@ -164,9 +169,9 @@ function drawPeq() {
     g.arc(x, y, i === peqDrag ? 8 : 6, 0, 2 * Math.PI);
     g.fillStyle = b.bypass ? "#101215" : "#e8a33d";
     g.fill();
-    g.strokeStyle = "#e8a33d";
+    g.strokeStyle = b.bypass ? "#5c6672" : "#e8a33d";
     g.stroke();
-    g.fillStyle = b.bypass ? "#e8a33d" : "#14161a";
+    g.fillStyle = b.bypass ? "#5c6672" : "#14161a";
     g.fillText(String(i + 1), x - 3, y + 3);
   });
 }
@@ -186,11 +191,25 @@ function buildBandRows() {
       `<label>Q <input data-k="q" type="number" step="any"></label>` +
       `<label>Gain dB <input data-k="gainDb" type="number" step="any"></label>` +
       `<label>Bypass <input data-k="bypass" type="checkbox"></label>` +
+      `<span class="peq-pill">ACTIVE</span>` +
       `<button data-a="set">Set</button><button data-a="reset">Reset</button>`;
     row.querySelector('[data-a="set"]').onclick = () => peqPostBand(i, false);
     row.querySelector('[data-a="reset"]').onclick = () => peqPostBand(i, true);
+    row.querySelector('[data-k="bypass"]').onchange = (e) => {
+      peqOut().bands[i].bypass = e.target.checked;
+      syncPill(i);
+      drawPeq();
+    };
     host.appendChild(row);
   }
+}
+
+function syncPill(i) {
+  const row = document.getElementById("peq-bands").children[i];
+  const off = peqOut().bands[i].bypass;
+  row.classList.toggle("bypassed", off);
+  const pill = row.querySelector(".peq-pill");
+  pill.textContent = off ? "BYPASSED" : "ACTIVE";
 }
 
 function peqReadRow(i) {
@@ -206,7 +225,7 @@ function peqReadRow(i) {
 }
 
 async function peqPostBand(i, reset) {
-  const chan = document.getElementById("peq-chan").value;
+  const chan = peqChan();
   const p = reset
     ? { freqHz: peqOut().bands[i].freqHz, q: 1.4, gainDb: 0, type: 0, bypass: false }
     : peqReadRow(i);
@@ -223,7 +242,8 @@ function fillPeq() {
     q("freqHz").value = b.freqHz.toFixed(1);
     q("q").value = b.q.toFixed(2);
     q("gainDb").value = b.gainDb.toFixed(1);
-    q("bypass").checked = false;
+    q("bypass").checked = !!b.bypass;
+    syncPill(i);
   });
   document.getElementById("peq-hpf").value = out.hpfHz ? out.hpfHz.toFixed(1) : "";
   document.getElementById("peq-hpf-slope").value = String(out.hpfSlope);
@@ -260,14 +280,18 @@ function peqNear(x, y) {
 
 window.addEventListener("DOMContentLoaded", () => {
   buildBandRows();
-  document.getElementById("peq-chan").onchange = () => {
-    if (peqState) {
-      fillPeq();
-      drawPeq();
-    }
-  };
+  document.querySelectorAll("#peq-tabs button").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll("#peq-tabs button").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      if (peqState) {
+        fillPeq();
+        drawPeq();
+      }
+    };
+  });
   document.getElementById("btn-peq-xo").onclick = async () => {
-    const chan = document.getElementById("peq-chan").value;
+    const chan = peqChan();
     const hf = Number(document.getElementById("peq-hpf").value || 0);
     const lf = Number(document.getElementById("peq-lpf").value || 0);
     await post("/api/crossover", { chan, highPass: true, freqHz: hf || 20, slope: hf ? Number(document.getElementById("peq-hpf-slope").value) : 0 });
@@ -296,7 +320,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const i = peqDrag;
     peqDrag = -1;
     const b = peqOut().bands[i];
-    await post("/api/peq", { chan: document.getElementById("peq-chan").value, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type });
+    await post("/api/peq", { chan: peqChan(), band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: b.bypass });
     await refreshState();
   });
   cv.addEventListener("wheel", async (e) => {
@@ -309,7 +333,7 @@ window.addEventListener("DOMContentLoaded", () => {
     drawPeq();
     clearTimeout(cv._qt);
     cv._qt = setTimeout(async () => {
-      await post("/api/peq", { chan: document.getElementById("peq-chan").value, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type });
+      await post("/api/peq", { chan: peqChan(), band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: b.bypass });
       await refreshState();
     }, 400);
   }, { passive: false });
