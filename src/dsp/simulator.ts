@@ -34,7 +34,7 @@ interface SimChannel {
 function makeOut(name: string, id: number): SimChannel {
   return {
     name,
-    gainRaw: 281,
+    gainRaw: 280,
     polarity: false,
     routing: 0x0f,
     delay: 0,
@@ -44,7 +44,7 @@ function makeOut(name: string, id: number): SimChannel {
     lpfSlope: 0,
     bands: Array.from({ length: 7 }, (_, j) => ({ gain: 120, freq: 60 + j * 10, q: 14, type: 0 })),
     gate: [0, 0, 0, 0],
-    comp: [0, 0, 0, 0, 0],
+    comp: [0, 0, 49, 499, 220],
     id,
   } as SimChannel;
 }
@@ -55,7 +55,7 @@ export class DspSimulator implements DspLink {
   muted: boolean[] = new Array(8).fill(false);
   signal = { source: 0, freq: 0 };
   private outs: SimChannel[] = [makeOut("Out1", 4), makeOut("Out2", 5), makeOut("Out3", 6), makeOut("Out4", 7)];
-  private ins = ["InA", "InB", "InC", "InD"].map((name) => ({ name, gainRaw: 281, polarity: false, gate: [0, 0, 0, 0] }));
+  private ins = ["InA", "InB", "InC", "InD"].map((name) => ({ name, gainRaw: 280, polarity: false, gate: [49, 499, 99, 0] }));
   private lastWrite: Uint8Array | null = null;
 
   async write(frame: Uint8Array): Promise<void> {

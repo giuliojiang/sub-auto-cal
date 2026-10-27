@@ -34,7 +34,10 @@ equivalent or access is EACCES.
 - `10 02` is DLE STX, `10 03` is DLE ETX.
 - Payload is `[0x00, addr, N, code, ...data]` with `N = 1 + data.length`.
 - `addr` is 0x01 on USB.
-- `checksum = XOR of all payload bytes, then ^ 1`.
+- `checksum = XOR of all payload bytes, then ^ 1`. The reference doc
+  claims the header `10 02` is included in the XOR — it is not: a frame
+  with that checksum gets no reply (verified live), while this one is
+  answered every time.
 - DLE bytes inside the payload are sent raw, never escaped.
 - Whole frame is padded with zeroes to 64 bytes.
 
@@ -88,19 +91,36 @@ Inputs InA..InD are 0x00..0x03, outputs Out1..Out4 are 0x04..0x07.
 
 ## Value scales
 
-- Level/gain (0x34): raw u16 0..400. 0 dB = 281, +12 dB = 400,
-  about 10 units per dB. Raw 0 floors around -60 dB.
+(Corrected 2026-10-27 against the reference editor's PROTOCOL.md,
+shipped inside its own .deb — read only, never installed or run —
+and re-verified live on the bench Mini unless noted.)
+
+- Level/gain (0x34): raw u16 0..400, piecewise: raw 0–80 covers
+  −60…−20 dB in 0.5 dB steps, raw 80–400 covers −20…+12 dB in
+  0.1 dB steps; 280 = 0 dB. (An earlier revision used a single linear
+  10/dB slope from 281 — wrong below −20 dB and off by one at 0 dB.)
 - PEQ gain (0x33): raw u16 0..240, 0 dB = 120, 0.1 dB per step.
   dB = (raw - 120) / 10.
 - Frequency (PEQ and crossover): log index 0..300, 30 steps per octave,
-  Hz = 19.7 * 2^(index / 30). Index 0 is 19.7 Hz, 300 is ~20.2 kHz.
+  Hz = 1000 * 2^((index − 170) / 30); index 170 = 1 kHz exactly.
   Check: index 31 gives 40.3 Hz. Quick crossovers: 80 Hz -> 80.6,
   100 Hz -> 99.2, 120 Hz -> 119.4.
-- PEQ Q: single byte, provisional mapping Q * 10. LIVE check pending:
-  sweep q8 against the device readback and record the real range/step.
-- Threshold (compressor, gate): raw = (dB + 90) * 2.
+- PEQ Q: u8 0–100, Q = 2^((raw − 16) / 12) — semitone steps, Q doubles
+  every 12 raw steps; range ≈ 0.40–128. Raw 22 reads Q 1.414, matching
+  the reference editor's Q 1.4 reset default. (An earlier revision used
+  Q * 10 — wrong; e.g. it wrote Q 0.88 while displaying 1.4.)
+  Acoustic validation still needs a mic measurement (later milestone).
+- Threshold (compressor, gate): raw = dB * 2 + 180, 0.5 dB steps.
+  Gate −90…0 dB, compressor −90…+20 dB.
+- Times (gate attack/release/hold, comp attack/release): u16 stores
+  milliseconds − 1; add 1 when displaying. Factory 49/499/99 reads as
+  50/500/100 ms. (An earlier revision stored ms directly.)
 - Delay (0x38): u16 samples at 48 kHz, ms = samples / 48,
   max 32640 = 680 ms.
+- Meters (0x40 reply): per channel triple (a, b, c) at data[3k..3k+2];
+  v = b·2^24 + a·2^16 + c·2^8; dB = 20·log10(v·2^−27) + 28;
+  FF FF FF means no signal. (An earlier revision read only the third
+  byte — the doc explicitly warns that byte doesn't follow the music.)
 - Routing (0x3a): bit mask InA=1 InB=2 InC=4 InD=8.
 - Compressor ratio: index 0..15 mapping 1:1.0 .. 1:20, Limit.
 - Crossover slope byte, 0 = bypass: 1 BW6, 2 BL6, 3 BW12, 4 BL12,

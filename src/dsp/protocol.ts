@@ -111,16 +111,15 @@ export function frameHex(frame: Uint8Array): string {
   return [...frame.slice(0, len)].map((b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
-export const GAIN_ZERO_RAW = 281;
-export const GAIN_PER_DB = 10;
 export const GAIN_MAX_RAW = 400;
 
 export function gainDbToRaw(db: number): number {
-  return Math.max(0, Math.min(GAIN_MAX_RAW, Math.round(GAIN_ZERO_RAW + db * GAIN_PER_DB)));
+  const raw = db <= -20 ? (db + 60) * 2 : 80 + (db + 20) * 10;
+  return Math.max(0, Math.min(GAIN_MAX_RAW, Math.round(raw)));
 }
 
 export function gainRawToDb(raw: number): number {
-  return (raw - GAIN_ZERO_RAW) / GAIN_PER_DB;
+  return raw <= 80 ? raw / 2 - 60 : (raw - 80) / 10 - 20;
 }
 
 export function peqGainDbToRaw(db: number): number {
@@ -131,24 +130,27 @@ export function peqGainRawToDb(raw: number): number {
   return (raw - 120) / 10;
 }
 
-export const FREQ_REF_HZ = 19.7;
 export const FREQ_STEPS_PER_OCT = 30;
 export const FREQ_IDX_MAX = 300;
+const FREQ_KNEE_IDX = 170;
+const FREQ_KNEE_HZ = 1000;
 
 export function hzToFreqIndex(hz: number): number {
-  return Math.max(0, Math.min(FREQ_IDX_MAX, Math.round(FREQ_STEPS_PER_OCT * Math.log2(hz / FREQ_REF_HZ))));
+  return Math.max(0, Math.min(FREQ_IDX_MAX, Math.round(FREQ_KNEE_IDX + FREQ_STEPS_PER_OCT * Math.log2(hz / FREQ_KNEE_HZ))));
 }
 
 export function freqIndexToHz(idx: number): number {
-  return FREQ_REF_HZ * Math.pow(2, idx / FREQ_STEPS_PER_OCT);
+  return FREQ_KNEE_HZ * Math.pow(2, (idx - FREQ_KNEE_IDX) / FREQ_STEPS_PER_OCT);
 }
 
+export const Q_RAW_MAX = 100;
+
 export function qToRaw(q: number): number {
-  return Math.max(0, Math.min(255, Math.round(q * 10)));
+  return Math.max(0, Math.min(Q_RAW_MAX, Math.round(16 + 12 * Math.log2(Math.max(1e-6, q)))));
 }
 
 export function rawToQ(raw: number): number {
-  return raw / 10;
+  return Math.pow(2, (raw - 16) / 12);
 }
 
 export function thresholdDbToRaw(db: number): number {
@@ -230,14 +232,18 @@ export interface GateParams {
   thresholdDb: number;
 }
 
+function msToRaw(ms: number): number {
+  return Math.max(0, Math.min(65535, Math.round(ms) - 1));
+}
+
 export function gateFrame(chan: number, g: GateParams): Uint8Array {
   return buildRequest(
     CMD.gate,
     Uint8Array.of(
       chan & 0xff,
-      ...u16le(g.attackMs),
-      ...u16le(g.releaseMs),
-      ...u16le(g.holdMs),
+      ...u16le(msToRaw(g.attackMs)),
+      ...u16le(msToRaw(g.releaseMs)),
+      ...u16le(msToRaw(g.holdMs)),
       ...u16le(thresholdDbToRaw(g.thresholdDb)),
     ),
   );
@@ -263,8 +269,8 @@ export function compressorFrame(chan: number, c: CompParams): Uint8Array {
       chan & 0xff,
       c.ratioIndex & 0xff,
       c.kneeDb & 0xff,
-      ...u16le(c.attackMs),
-      ...u16le(c.releaseMs),
+      ...u16le(msToRaw(c.attackMs)),
+      ...u16le(msToRaw(c.releaseMs)),
       ...u16le(thresholdDbToRaw(c.thresholdDb)),
     ),
   );
@@ -370,9 +376,9 @@ export function parsePresetImage(img: Uint8Array): { presetName: string; inputs:
     gainDb: gainRawToDb(u16(img, base + 18)),
     polarity: img[base + 20] !== 0,
     gate: {
-      attackMs: u16(img, base + 10),
-      releaseMs: u16(img, base + 12),
-      holdMs: u16(img, base + 14),
+      attackMs: u16(img, base + 10) + 1,
+      releaseMs: u16(img, base + 12) + 1,
+      holdMs: u16(img, base + 14) + 1,
       thresholdDb: thresholdRawToDb(u16(img, base + 16)),
     },
   }));
@@ -403,8 +409,8 @@ export function parsePresetImage(img: Uint8Array): { presetName: string; inputs:
       comp: {
         ratioIndex: img[base + 58] as number,
         kneeDb: img[base + 59] as number,
-        attackMs: u16(img, base + 60),
-        releaseMs: u16(img, base + 62),
+        attackMs: u16(img, base + 60) + 1,
+        releaseMs: u16(img, base + 62) + 1,
         thresholdDb: thresholdRawToDb(u16(img, base + 64)),
       },
     };
@@ -412,7 +418,22 @@ export function parsePresetImage(img: Uint8Array): { presetName: string; inputs:
   return { presetName: decodeStr(img, 2, 14), inputs, outputs };
 }
 
+export function meterDb(r: Reply, chan: number): number | null {
+  if (r.code !== CMD.meterPoll || r.data.length < 24) return null;
+  const a = r.data[3 * chan] as number;
+  const b = r.data[3 * chan + 1] as number;
+  const c = r.data[3 * chan + 2] as number;
+  if (a === 0xff && b === 0xff && c === 0xff) return null;
+  const v = b * 16777216 + a * 65536 + c * 256;
+  if (v <= 0) return -120;
+  return 20 * Math.log10(v * Math.pow(2, -27)) + 28;
+}
+
 export function levelsFromReply(r: Reply): number[] | null {
   if (r.code !== CMD.meterPoll || r.data.length < 24) return null;
-  return Array.from({ length: 8 }, (_, i) => (r.data[2 + 3 * i] as number) / 72);
+  return Array.from({ length: 8 }, (_, i) => {
+    const db = meterDb(r, i);
+    if (db === null) return 0;
+    return Math.max(0, Math.min(1, (db + 40) / 51));
+  });
 }

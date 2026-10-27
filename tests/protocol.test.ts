@@ -4,6 +4,7 @@ import {
   buildRequest,
   checksum,
   parseReply,
+  meterDb,
   frameHex,
   gainDbToRaw,
   gainRawToDb,
@@ -11,6 +12,7 @@ import {
   hzToFreqIndex,
   freqIndexToHz,
   qToRaw,
+  rawToQ,
   msToDelaySamples,
   thresholdDbToRaw,
   muteFrame,
@@ -53,11 +55,16 @@ describe("framing", () => {
 });
 
 describe("scales", () => {
-  it("gain: 0dB=281, +12dB=400, ~10/dB", () => {
-    assert.equal(gainDbToRaw(0), 281);
+  it("gain: piecewise, 280=0dB, 400=+12dB, 80=-20dB, 0=-60dB", () => {
+    assert.equal(gainDbToRaw(0), 280);
     assert.equal(gainDbToRaw(12), 400);
-    assert.equal(gainDbToRaw(-6), 221);
-    assert.equal(gainRawToDb(281), 0);
+    assert.equal(gainDbToRaw(-6), 220);
+    assert.equal(gainDbToRaw(-20), 80);
+    assert.equal(gainDbToRaw(-30), 60);
+    assert.equal(gainDbToRaw(-60), 0);
+    assert.equal(gainRawToDb(280), 0);
+    assert.equal(gainRawToDb(220), -6);
+    assert.equal(gainRawToDb(60), -30);
   });
   it("peq gain: 0.1dB steps, 0dB=120", () => {
     assert.equal(peqGainDbToRaw(0), 120);
@@ -79,24 +86,30 @@ describe("scales", () => {
   it("threshold raw=(dB+90)*2", () => {
     assert.equal(thresholdDbToRaw(-10), 160);
   });
-  it("q maps and clamps", () => {
-    assert.equal(qToRaw(1.4), 14);
+  it("q: semitone steps, raw 22 = 1.414, range 0-100", () => {
+    assert.equal(qToRaw(2), 28);
+    assert.equal(qToRaw(1), 16);
+    assert.equal(qToRaw(0.5), 4);
+    assert.ok(Math.abs(rawToQ(22) - 1.4142) < 0.001);
+    assert.equal(rawToQ(100), 128);
+    assert.ok(rawToQ(0) < 0.4);
+    assert.equal(qToRaw(1000), 100);
   });
 });
 
 describe("command layouts", () => {
   it("level frame carries [chan, raw16le]", () => {
     const f = levelFrame(4, -6);
-    assert.deepEqual([...f.slice(5, 9)], [0x34, 4, 221, 0]);
+    assert.deepEqual([...f.slice(5, 9)], [0x34, 4, 220, 0]);
   });
   it("peq frame carries [chan, band, gain16, freq16, q, type, bypass]", () => {
-    const f = peqFrame(4, 2, { freqHz: 100, q: 1.4, gainDb: -3, type: 0 });
+    const f = peqFrame(4, 2, { freqHz: 100, q: 2, gainDb: -3, type: 0 });
     assert.equal(f[5], 0x33);
     assert.equal(f[6], 4);
     assert.equal(f[7], 2);
     assert.equal((f[8] as number) | ((f[9] as number) << 8), 90);
     assert.equal((f[10] as number) | ((f[11] as number) << 8), hzToFreqIndex(100));
-    assert.equal(f[12], 14);
+    assert.equal(f[12], 28);
     assert.equal(f[13], 0);
     assert.equal(f[14], 0);
   });
@@ -111,9 +124,9 @@ describe("command layouts", () => {
     const f = gateFrame(0, { attackMs: 10, releaseMs: 200, holdMs: 50, thresholdDb: -60 });
     assert.equal(f[5], 0x3e);
     assert.equal(f[6], 0);
-    assert.equal((f[7] as number) | ((f[8] as number) << 8), 10);
-    assert.equal((f[9] as number) | ((f[10] as number) << 8), 200);
-    assert.equal((f[11] as number) | ((f[12] as number) << 8), 50);
+    assert.equal((f[7] as number) | ((f[8] as number) << 8), 9);
+    assert.equal((f[9] as number) | ((f[10] as number) << 8), 199);
+    assert.equal((f[11] as number) | ((f[12] as number) << 8), 49);
     assert.equal((f[13] as number) | ((f[14] as number) << 8), 60);
   });
   it("compressor frame carries [chan, ratio, knee, atk16, rel16, thr16]", () => {
@@ -121,9 +134,25 @@ describe("command layouts", () => {
     assert.equal(f[5], 0x30);
     assert.deepEqual([f[6], f[7]], [4, 15]);
     assert.equal(f[8], 6);
-    assert.equal((f[9] as number) | ((f[10] as number) << 8), 5);
-    assert.equal((f[11] as number) | ((f[12] as number) << 8), 100);
+    assert.equal((f[9] as number) | ((f[10] as number) << 8), 4);
+    assert.equal((f[11] as number) | ((f[12] as number) << 8), 99);
     assert.equal((f[13] as number) | ((f[14] as number) << 8), 160);
+  });
+});
+
+describe("meters", () => {
+  it("decodes dB per the editor formula, FF FF FF means no signal", () => {
+    const data = new Uint8Array(27);
+    data[0] = 81;
+    data[1] = 0;
+    data[2] = 136;
+    const r = { code: CMD.meterPoll, data, checksumOk: true };
+    const db = meterDb(r, 0);
+    assert.ok(db !== null && Math.abs(db) < 0.05);
+    data[3] = 0xff;
+    data[4] = 0xff;
+    data[5] = 0xff;
+    assert.equal(meterDb(r, 1), null);
   });
 });
 
@@ -167,7 +196,8 @@ describe("simulator round-trip", () => {
     assert.deepEqual(st.outputs[0]!.comp, { ratioIndex: 15, kneeDb: 6, attackMs: 5, releaseMs: 100, thresholdDb: -10 });
     await dev.revert();
     st = await dev.refresh();
-    assert.deepEqual(st.inputs[0]!.gate, { attackMs: 0, releaseMs: 0, holdMs: 0, thresholdDb: -90 });
+    assert.deepEqual(st.inputs[0]!.gate, { attackMs: 50, releaseMs: 500, holdMs: 100, thresholdDb: -90 });
+    assert.deepEqual(st.outputs[0]!.comp, { ratioIndex: 0, kneeDb: 0, attackMs: 50, releaseMs: 500, thresholdDb: 20 });
   });
   it("preset image parser reads the simulator image", async () => {
     const sim = new DspSimulator();
