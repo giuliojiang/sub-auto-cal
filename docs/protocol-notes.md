@@ -126,4 +126,22 @@ Inputs InA..InD are 0x00..0x03, outputs Out1..Out4 are 0x04..0x07.
 
 ## LIVE check log
 
-(append dated results from the bench unit here)
+2026-10-27, bench unit, `4x4MINI V010`, preset `Default Preset`:
+- Transport: 64-byte reports, no report ID. node-hid `write()` takes the
+  report ID as its first array element, so frames go out as
+  `[0x00, ...64 frame bytes]`.
+- The device answers every query (0x10 status=0x1e, 0x13 version,
+  0x2c config=00270f00000000, 0x27 pages, 0x40 meters), checksums valid.
+- Nine 0x24 pages of 50 bytes rebuild the 450-byte image; offsets decode
+  to sensible data (routing 1/2/4/8, gains raw 280, default PEQ bands at
+  40.3/101.6/301.0/812.8/2001.4/5043.2/10086.4 Hz all Q raw 25).
+- Every SET write is answered with a one-frame ack, payload
+  `[01, 00, 01, 01]` i.e. code 0x01, empty data. The transport must drain
+  exactly one reply after each write or all later query/reply pairs lag
+  one command behind (silent data shift, reads look plausible but stale).
+- Write verified live: Out4 gain to raw 221 (-6 dB) read back as -6 dB.
+- Q mapping still provisional (q8 = Q*10 fits the default raw 25 = Q 2.5;
+  acoustic Q check needs a mic measurement, later milestone).
+- After a host-side `udevadm trigger` driver rebind the unit stopped
+  answering (open OK, no replies); pending a physical power-cycle to
+  confirm it recovers and re-verify.

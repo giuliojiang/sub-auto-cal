@@ -62,9 +62,18 @@ export class DspDevice {
       await this.link.query(CMD.config);
     } catch {}
     try {
-      await this.link.query(CMD.initDone);
+      await this.link.query(CMD.flagsBlock);
+    } catch {}
+    try {
+      await this.link.query(CMD.flag);
+    } catch {}
+    try {
+      await this.link.query(CMD.readPresetName, Uint8Array.of(0));
     } catch {}
     await this.refresh();
+    try {
+      await this.link.query(CMD.initDone);
+    } catch {}
     if (this.state) this.state.version = version;
     await this.signal(0);
     return this.state as DeviceState;

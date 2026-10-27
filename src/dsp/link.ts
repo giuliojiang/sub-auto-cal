@@ -51,7 +51,10 @@ export class HidLink implements DspLink {
   }
 
   async write(frame: Uint8Array): Promise<void> {
-    this.dev.write([...frame]);
+    this.dev.write([0x00, ...frame]);
+    try {
+      this.dev.readTimeout(500);
+    } catch {}
   }
 
   async query(code: number, data = new Uint8Array(0), timeoutMs = 800): Promise<Reply> {
