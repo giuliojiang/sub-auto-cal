@@ -152,11 +152,8 @@ export async function playWav(path: string): Promise<void> {
 }
 
 export async function recordWav(path: string, seconds: number, sr = SAMPLE_RATE): Promise<void> {
-  const args = ["--rate=" + sr, "--channels=1", "--format=s16le", "--file-format=wav", "-d", String(Math.ceil(seconds)), path];
-  const pr = await run("parecord", args);
-  if (pr.code === 0) return;
   const ar = await run("arecord", ["-q", "-r", String(sr), "-c", "1", "-f", "S16_LE", "-t", "wav", "-d", String(Math.ceil(seconds)), path]);
-  if (ar.code !== 0) throw new Error(`no recorder worked (parecord, arecord): ${ar.out.slice(0, 200)}`);
+  if (ar.code !== 0) throw new Error(`arecord failed: ${ar.out.slice(0, 200)}`);
 }
 
 export interface NoiseCheckResult extends LevelReport {
