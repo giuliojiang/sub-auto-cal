@@ -6,6 +6,7 @@ import { DspDevice } from "./dsp/device.ts";
 import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
 import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, defaultCaptureId } from "./audio.ts";
+import { LoopRunner } from "./measure/loop.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -13,6 +14,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pubDir = join(root, "public");
 
 let device: DspDevice | null = null;
+let loop: LoopRunner | null = null;
 
 const CHAN_NAMES: Record<string, number> = {
   ina: 0, inb: 1, inc: 2, ind: 3,
@@ -222,6 +224,33 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   },
   "GET /api/history": async (_req, res) => {
     json(res, 200, device?.history ?? []);
+  },
+  "POST /api/loop/start": async (_req, res, body) => {
+    try {
+      if (loop?.running) throw new Error("loop already running; STOP it first");
+      const fStart = Number(body?.fStart ?? 100);
+      const fEnd = Number(body?.fEnd ?? 8000);
+      if (!(fStart >= 20 && fEnd <= 20000 && fStart < fEnd)) throw new Error("need 20 <= fStart < fEnd <= 20000");
+      loop = new LoopRunner({
+        fStart,
+        fEnd,
+        sweepSecs: Math.max(2, Math.min(20, Number(body?.sweepSecs ?? 4))),
+        maxIter: Math.max(0, Math.min(200, Number(body?.maxIter ?? 6))),
+        playbackId: body?.playbackId,
+        captureId: body?.captureId ?? (await defaultCaptureId()),
+      });
+      void loop.run();
+      json(res, 200, { ok: true });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
+  },
+  "POST /api/loop/stop": async (_req, res) => {
+    loop?.stop();
+    json(res, 200, { ok: true });
+  },
+  "GET /api/loop/state": async (_req, res) => {
+    json(res, 200, loop ? loop.snapshot() : { running: false, timeline: [] });
   },
   "GET /api/audio/devices": async (_req, res) => {
     const devs = await listAudioDevices();

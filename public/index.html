@@ -101,11 +101,27 @@
     <canvas id="wave" width="800" height="160"></canvas>
   </section>
   <section>
+    <h2>Optimization loop</h2>
+    <div class="row">
+      <label>Goal start Hz <input id="loop-fstart" type="number" step="any" value="100"></label>
+      <label>Goal end Hz <input id="loop-fend" type="number" step="any" value="8000"></label>
+      <label>Sweep s <input id="loop-secs" type="number" min="2" max="20" value="4"></label>
+      <label>Iters, 0 = until STOP <input id="loop-max" type="number" min="0" max="200" value="6"></label>
+      <button id="btn-go">GO</button>
+      <button id="btn-stop">STOP</button>
+      <span id="loop-status">idle</span>
+    </div>
+    <canvas id="loop-graph" width="800" height="220"></canvas>
+    <div id="loop-best"></div>
+    <div id="loop-timeline"></div>
+  </section>
+  <section>
     <h2>Write log</h2>
     <pre id="history"></pre>
   </section>
 </main>
 <script src="app.js"></script>
 <script src="peq.js"></script>
+<script src="loop.js"></script>
 </body>
 </html>
