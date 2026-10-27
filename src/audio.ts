@@ -125,6 +125,21 @@ export interface LevelReport {
   verdict: "too low" | "OK" | "too high";
 }
 
+export function waveform(samples: Float32Array, buckets = 400): number[] {
+  const out = new Array(buckets).fill(0);
+  const per = Math.max(1, Math.floor(samples.length / buckets));
+  for (let b = 0; b < buckets; b++) {
+    let peak = 0;
+    const end = Math.min(samples.length, (b + 1) * per);
+    for (let i = b * per; i < end; i++) {
+      const v = Math.abs(samples[i] as number);
+      if (v > peak) peak = v;
+    }
+    out[b] = Math.round(peak * 1000) / 1000;
+  }
+  return out;
+}
+
 export function analyzeLevel(samples: Float32Array): LevelReport {
   let peak = 0;
   let sumSq = 0;

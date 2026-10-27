@@ -1,11 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
-import { join, dirname, extname } from "node:path";
+import { join, dirname, extname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DspDevice } from "./dsp/device.ts";
 import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
-import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel } from "./audio.ts";
+import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform } from "./audio.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -225,6 +225,19 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   },
   "GET /api/audio/devices": async (_req, res) => {
     json(res, 200, await listAudioDevices());
+  },
+  "GET /api/audio/waveform": async (req, res) => {
+    try {
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const file = basename(url.searchParams.get("file") ?? "");
+      if (!file.endsWith(".wav")) throw new Error("unknown recording");
+      const path = join(process.cwd(), "recordings", file);
+      if (!existsSync(path)) throw new Error("unknown recording");
+      const { samples, sampleRate } = readWav(path);
+      json(res, 200, { peaks: waveform(samples), sampleRate, seconds: samples.length / sampleRate });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
   },
   "POST /api/audio/noise-check": async (_req, res, body) => {
     try {

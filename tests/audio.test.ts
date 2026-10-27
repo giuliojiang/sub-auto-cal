@@ -6,6 +6,7 @@ import {
   writeWav,
   readWav,
   analyzeLevel,
+  waveform,
 } from "../src/audio.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +32,15 @@ describe("audio synth and analysis", () => {
       assert.equal(r.clipped, false);
       assert.equal(r.verdict, "OK");
     }
+  });
+  it("waveform buckets track peaks, silence is flat", () => {
+    const sine = new Float32Array(4800);
+    for (let i = 0; i < sine.length; i++) sine[i] = Math.sin((2 * Math.PI * i) / 48) * 0.8;
+    const peaks = waveform(sine, 48);
+    assert.equal(peaks.length, 48);
+    assert.ok(Math.max(...peaks) > 0.79);
+    assert.ok(Math.min(...peaks) > 0.79);
+    assert.deepEqual(waveform(new Float32Array(100), 8), [0, 0, 0, 0, 0, 0, 0, 0]);
   });
   it("silence is too low, full scale is too high", () => {
     assert.equal(analyzeLevel(new Float32Array(48000)).verdict, "too low");

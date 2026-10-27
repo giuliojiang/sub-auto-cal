@@ -100,6 +100,24 @@ $("btn-devs").onclick = async () => {
   fill("nz-cap", d.capture);
   $("audio-out").textContent = "PLAYBACK:\n" + d.playback.join("\n") + "\n\nCAPTURE:\n" + d.capture.join("\n");
 };
+function drawWave(peaks) {
+  const cv = $("wave");
+  const g = cv.getContext("2d");
+  g.clearRect(0, 0, cv.width, cv.height);
+  g.fillStyle = "#f4f4f2";
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = "#999";
+  g.beginPath();
+  g.moveTo(0, cv.height / 2 + 0.5);
+  g.lineTo(cv.width, cv.height / 2 + 0.5);
+  g.stroke();
+  g.fillStyle = "#1c1c1c";
+  const bw = cv.width / peaks.length;
+  peaks.forEach((p, i) => {
+    const h = Math.max(1, p * cv.height * 0.95);
+    g.fillRect(i * bw, (cv.height - h) / 2, Math.max(1, bw - 0.5), h);
+  });
+}
 $("btn-noise").onclick = async () => {
   $("audio-out").textContent = "Playing and recording…";
   const r = await post("/api/audio/noise-check", {
@@ -109,6 +127,9 @@ $("btn-noise").onclick = async () => {
   $("audio-out").textContent =
     `verdict: ${r.verdict}\npeak: ${r.peakDbfs.toFixed(1)} dBFS\nrms: ${r.rmsDbfs.toFixed(1)} dBFS\n` +
     `clipped: ${r.clipped}\nrate: ${r.sampleRate} Hz\nplayback: ${r.playbackId}\ncapture: ${r.captureId}\nrecording: ${r.recordingFile}`;
+  const name = r.recordingFile.split("/").pop();
+  const w = await api("/api/audio/waveform?file=" + encodeURIComponent(name));
+  drawWave(w.peaks);
 };
 
 refreshStatus();
