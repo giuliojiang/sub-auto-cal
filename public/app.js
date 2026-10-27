@@ -32,6 +32,7 @@ async function refreshState() {
     });
   });
   $("channels").innerHTML = "<pre>" + rows.join("\n") + "</pre>";
+  if (window.refreshPeq) window.refreshPeq(st);
   const h = await api("/api/history");
   $("history").textContent = h.map((e) => `${e.time} [${e.target}] ${e.what}`).join("\n") || "(no writes yet)";
 }
@@ -53,14 +54,7 @@ $("btn-mute-on").onclick = async () => { await post("/api/mute", { chan: chan(),
 $("btn-mute-off").onclick = async () => { await post("/api/mute", { chan: chan(), on: false }); await refreshState(); };
 $("btn-pol-inv").onclick = async () => { await post("/api/polarity", { chan: chan(), invert: true }); await refreshState(); };
 $("btn-pol-norm").onclick = async () => { await post("/api/polarity", { chan: chan(), invert: false }); await refreshState(); };
-$("btn-peq").onclick = async () => {
-  await post("/api/peq", {
-    chan: chan(), band: Number($("peq-band").value), freqHz: Number($("peq-freq").value),
-    q: Number($("peq-q").value), gainDb: Number($("peq-gain").value), type: Number($("peq-type").value),
-    bypass: $("peq-bypass").checked,
-  });
-  await refreshState();
-};
+
 $("btn-gate").onclick = async () => {
   await post("/api/gate", {
     chan: chan(), attackMs: Number($("gate-atk").value), releaseMs: Number($("gate-rel").value),
@@ -78,13 +72,7 @@ $("btn-comp").onclick = async () => {
 };
 $("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); await refreshState(); };
 $("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); await refreshState(); };
-$("btn-xo").onclick = async () => {
-  await post("/api/crossover", {
-    chan: chan(), highPass: $("xo-side").value === "hpf",
-    freqHz: Number($("xo-freq").value), slope: Number($("xo-slope").value),
-  });
-  await refreshState();
-};
+
 $("btn-sig").onclick = async () => {
   await post("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });
   await refreshState();

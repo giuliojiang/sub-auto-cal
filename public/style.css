@@ -12,4 +12,8 @@ button { padding: 0.35rem 0.7rem; cursor: pointer; }
 input, select { padding: 0.3rem; }
 pre { background: #f4f4f2; padding: 0.6rem; overflow-x: auto; font-size: 0.8rem; }
 #wave { width: 100%; border: 1px solid #ddd; margin-top: 0.5rem; }
+#peq-graph { width: 100%; border: 1px solid #ddd; margin: 0.5rem 0; touch-action: none; }
+#peq-hint { font-size: 0.8rem; color: #555; }
+.peq-row { display: flex; gap: 0.6rem; align-items: end; flex-wrap: wrap; padding: 0.35rem 0; border-top: 1px solid #eee; }
+.peq-row strong { min-width: 1rem; }
 #status { margin-right: 0.6rem; font-size: 0.85rem; }

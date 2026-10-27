@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>sub-auto-cal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2320242a'/><path d='M1 11 L5 11 L7 5 L9 13 L11 8 L15 8' stroke='white' fill='none'/></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -42,23 +43,20 @@
       <button id="btn-pol-inv">Invert polarity</button>
       <button id="btn-pol-norm">Normal polarity</button>
     </div>
-    <h3>PEQ band</h3>
-    <div class="grid">
-      <label>Band <input id="peq-band" type="number" min="0" max="6" value="0"></label>
-      <label>Freq Hz <input id="peq-freq" type="number" step="any" value="100"></label>
-      <label>Q <input id="peq-q" type="number" step="any" value="1.4"></label>
-      <label>Gain dB <input id="peq-gain" type="number" step="any" value="-3"></label>
-      <label>Type <select id="peq-type"><option value="0">Peak</option><option value="1">Low shelf</option><option value="2">High shelf</option><option value="3">Low cut</option><option value="4">High cut</option><option value="5">Allpass1</option><option value="6">Allpass2</option></select></label>
-      <label>Bypass <input id="peq-bypass" type="checkbox"></label>
-      <button id="btn-peq">Set PEQ</button>
+    <h3>PEQ + crossover designer</h3>
+    <div class="row">
+      <label>Output <select id="peq-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option></select></label>
+      <span id="peq-hint">drag a point for frequency + gain, wheel over a point for Q, changes send on release</span>
     </div>
-    <h3>Crossover</h3>
+    <canvas id="peq-graph" width="800" height="260"></canvas>
     <div class="grid">
-      <label>Side <select id="xo-side"><option value="hpf">High-pass</option><option value="lpf">Low-pass</option></select></label>
-      <label>Freq Hz <input id="xo-freq" type="number" step="any" value="80"></label>
-      <label>Slope <select id="xo-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
-      <button id="btn-xo">Set crossover</button>
+      <label>HPF Hz <input id="peq-hpf" type="number" step="any"></label>
+      <label>HPF slope <select id="peq-hpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
+      <label>LPF Hz <input id="peq-lpf" type="number" step="any"></label>
+      <label>LPF slope <select id="peq-lpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
+      <button id="btn-peq-xo">Set crossovers</button>
     </div>
+    <div id="peq-bands"></div>
     <h3>Noise gate (inputs)</h3>
     <div class="grid">
       <label>Attack ms <input id="gate-atk" type="number" step="any" value="0"></label>
@@ -108,5 +106,6 @@
   </section>
 </main>
 <script src="app.js"></script>
+<script src="peq.js"></script>
 </body>
 </html>
