@@ -7,6 +7,8 @@ import {
   readWav,
   analyzeLevel,
   waveform,
+  alsaHwId,
+  preferCaptureId,
 } from "../src/audio.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,6 +43,16 @@ describe("audio synth and analysis", () => {
     assert.ok(Math.max(...peaks) > 0.79);
     assert.ok(Math.min(...peaks) > 0.79);
     assert.deepEqual(waveform(new Float32Array(100), 8), [0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+  it("capture preference picks DMIC over generic inputs", () => {
+    const devs = [
+      "card 0: sofhdadsp [sof-hda-dsp], device 0: HDA Analog (*) []",
+      "card 0: sofhdadsp [sof-hda-dsp], device 6: DMIC (*) []",
+    ];
+    assert.equal(alsaHwId(devs[1]), "plughw:0,6");
+    assert.equal(alsaHwId("pulse:foo"), null);
+    assert.equal(preferCaptureId(devs), devs[1]);
+    assert.equal(preferCaptureId([devs[0]]), undefined);
   });
   it("silence is too low, full scale is too high", () => {
     assert.equal(analyzeLevel(new Float32Array(48000)).verdict, "too low");

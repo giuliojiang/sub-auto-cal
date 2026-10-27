@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { DspDevice } from "./dsp/device.ts";
 import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
-import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform } from "./audio.ts";
+import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, defaultCaptureId } from "./audio.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -224,7 +224,8 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
     json(res, 200, device?.history ?? []);
   },
   "GET /api/audio/devices": async (_req, res) => {
-    json(res, 200, await listAudioDevices());
+    const devs = await listAudioDevices();
+    json(res, 200, { ...devs, defaultCapture: preferCaptureId(devs.capture) ?? null });
   },
   "GET /api/audio/waveform": async (req, res) => {
     try {
@@ -264,7 +265,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
     try {
       const seconds = Math.max(1, Math.min(30, Number(body?.seconds ?? 3)));
       const path = join(mkdtempSync(join(tmpdir(), "subcal-")), "rec.wav");
-      await recordWav(path, seconds);
+      await recordWav(path, seconds, 48000, body?.captureId ?? (await defaultCaptureId()));
       const { samples, sampleRate } = readWav(path);
       json(res, 200, { ...analyzeLevel(samples), sampleRate, seconds, file: path });
     } catch (err) {

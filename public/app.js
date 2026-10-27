@@ -98,6 +98,7 @@ $("btn-devs").onclick = async () => {
   const d = await api("/api/audio/devices");
   fill("nz-play", d.playback);
   fill("nz-cap", d.capture);
+  if (d.defaultCapture && !$("nz-cap").value) $("nz-cap").value = d.defaultCapture;
   $("audio-out").textContent = "PLAYBACK:\n" + d.playback.join("\n") + "\n\nCAPTURE:\n" + d.capture.join("\n");
 };
 function drawWave(peaks) {

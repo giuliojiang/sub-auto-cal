@@ -169,7 +169,19 @@ export async function playWav(path: string, playbackId?: string): Promise<void> 
 
 export function alsaHwId(label: string): string | null {
   const m = /card (\d+).*device (\d+)/.exec(label);
-  return m ? `hw:${m[1]},${m[2]}` : null;
+  return m ? `plughw:${m[1]},${m[2]}` : null;
+}
+
+export function preferCaptureId(capture: string[]): string | undefined {
+  return capture.find((d) => /dmic/i.test(d)) ?? capture.find((d) => /mic/i.test(d));
+}
+
+export async function defaultCaptureId(): Promise<string | undefined> {
+  try {
+    return preferCaptureId((await listAudioDevices()).capture);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function recordWav(path: string, seconds: number, sr = SAMPLE_RATE, captureId?: string): Promise<void> {
@@ -203,7 +215,8 @@ export async function noiseCheck(
   writeWav(stim, gen(seconds));
   const play = playWav(stim, playbackId).catch((e) => ({ code: 1, out: String(e) }));
   await new Promise((res) => setTimeout(res, 250));
-  await recordWav(rec, seconds + 1, SAMPLE_RATE, captureId);
+  const cap = captureId ?? (await defaultCaptureId());
+  await recordWav(rec, seconds + 1, SAMPLE_RATE, cap);
   await play;
   const { samples, sampleRate } = readWav(rec);
   const keepDir = join(process.cwd(), "recordings");
@@ -211,7 +224,7 @@ export async function noiseCheck(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const kept = join(keepDir, `noise-check-${stamp}.wav`);
   writeFileSync(kept, readFileSync(rec));
-  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds, playbackId: playbackId ?? "default", captureId: captureId ?? "default" };
+  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds, playbackId: playbackId ?? "default", captureId: cap ?? "default" };
 }
 
 export async function defaultRate(): Promise<number> {
