@@ -100,42 +100,42 @@ export class DspDevice {
   }
 
   async setGain(chan: number, db: number): Promise<void> {
-    await this.link.write(levelFrame(chan, db));
+    await this.link.command(levelFrame(chan, db));
     this.log(`gain ch=${chan} db=${db}`);
   }
 
   async setPeq(chan: number, band: number, p: PeqParams): Promise<void> {
-    await this.link.write(peqFrame(chan, band, p));
+    await this.link.command(peqFrame(chan, band, p));
     this.log(`peq ch=${chan} band=${band} ${p.freqHz}Hz q=${p.q} ${p.gainDb}dB type=${p.type}`);
   }
 
   async setCrossover(chan: number, highPass: boolean, freqHz: number, slope: number): Promise<void> {
-    await this.link.write(crossoverFrame(highPass, chan, freqHz, slope));
+    await this.link.command(crossoverFrame(highPass, chan, freqHz, slope));
     this.log(`xover ch=${chan} ${highPass ? "hpf" : "lpf"} ${freqHz}Hz slope=${slope}`);
   }
 
   async setDelay(chan: number, ms: number): Promise<void> {
-    await this.link.write(delayFrame(chan, ms));
+    await this.link.command(delayFrame(chan, ms));
     this.log(`delay ch=${chan} ms=${ms}`);
   }
 
   async setRouting(outChan: number, inputMask: number): Promise<void> {
-    await this.link.write(routingFrame(outChan, inputMask));
+    await this.link.command(routingFrame(outChan, inputMask));
     this.log(`routing ch=${outChan} mask=${inputMask}`);
   }
 
   async setMute(chan: number, on: boolean): Promise<void> {
-    await this.link.write(muteFrame(chan, on));
+    await this.link.command(muteFrame(chan, on));
     this.log(`mute ch=${chan} on=${on}`);
   }
 
   async setPolarity(chan: number, invert: boolean): Promise<void> {
-    await this.link.write(polarityFrame(chan, invert));
+    await this.link.command(polarityFrame(chan, invert));
     this.log(`polarity ch=${chan} invert=${invert}`);
   }
 
   async signal(source: number, freqHz?: number): Promise<void> {
-    await this.link.write(signalFrame(source, freqHz));
+    await this.link.command(signalFrame(source, freqHz));
     this.log(`signal source=${source}${freqHz ? ` hz=${freqHz}` : ""}`);
   }
 

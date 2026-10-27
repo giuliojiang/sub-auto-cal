@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 export interface DspLink {
   name: string;
   write(frame: Uint8Array): Promise<void>;
+  command(frame: Uint8Array): Promise<void>;
   query(code: number, data?: Uint8Array, timeoutMs?: number): Promise<Reply>;
   close(): void;
 }
@@ -51,6 +52,10 @@ export class HidLink implements DspLink {
   }
 
   async write(frame: Uint8Array): Promise<void> {
+    this.dev.write([0x00, ...frame]);
+  }
+
+  async command(frame: Uint8Array): Promise<void> {
     this.dev.write([0x00, ...frame]);
     try {
       this.dev.readTimeout(500);

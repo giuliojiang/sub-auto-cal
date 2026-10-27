@@ -139,9 +139,14 @@ Inputs InA..InD are 0x00..0x03, outputs Out1..Out4 are 0x04..0x07.
   `[01, 00, 01, 01]` i.e. code 0x01, empty data. The transport must drain
   exactly one reply after each write or all later query/reply pairs lag
   one command behind (silent data shift, reads look plausible but stale).
-- Write verified live: Out4 gain to raw 221 (-6 dB) read back as -6 dB.
-- Q mapping still provisional (q8 = Q*10 fits the default raw 25 = Q 2.5;
-  acoustic Q check needs a mic measurement, later milestone).
-- After a host-side `udevadm trigger` driver rebind the unit stopped
-  answering (open OK, no replies); pending a physical power-cycle to
-  confirm it recovers and re-verify.
+- Writes verified live on Out4, all read back exact: gain -6 dB,
+  PEQ band0 99.28 Hz / Q 1.40 / -3 dB, band1 1000.70 Hz / Q 7.10 / -12 dB,
+  delay 1.458 ms, HPF 80.64 Hz slope LR24 (code 10), routing mask 5;
+  revert restored the snapshot. Out4 returned to factory raw 280 after.
+- Q mapping still provisional (q8 = Q*10 fits the default raw 25 = Q 2.5
+  and round-trips arbitrary values; acoustic Q check needs a mic
+  measurement, later milestone).
+- Self-inflicted silence, twice, both host-side: (1) undrained write acks
+  shift later replies one command behind; (2) a drain placed inside
+  `write()` ate query replies too — fixed by splitting `write` (no read)
+  from `command` (write + drain one ack). The unit itself never wedged.

@@ -63,6 +63,10 @@ export class DspSimulator implements DspLink {
     this.apply(frame);
   }
 
+  async command(frame: Uint8Array): Promise<void> {
+    await this.write(frame);
+  }
+
   async query(code: number, data = new Uint8Array(0), _timeoutMs = 800): Promise<Reply> {
     await this.write(buildRequest(code, data));
     const report = this.replyFor(code, data);
