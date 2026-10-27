@@ -11,6 +11,38 @@ function post(path, data) {
   return api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data || {}) });
 }
 
+const pending = new Map();
+
+function renderPending() {
+  const b = $("btn-write");
+  b.textContent = `Write (${pending.size})`;
+  b.disabled = pending.size === 0;
+  b.title = pending.size ? [...pending.values()].map((e) => e.label).join("\n") : "no staged edits";
+}
+
+function stage(key, label, path, body) {
+  pending.set(key, { label, path, body });
+  renderPending();
+}
+
+function clearPending() {
+  pending.clear();
+  renderPending();
+}
+
+$("btn-write").onclick = async () => {
+  const items = [...pending.entries()];
+  for (const [key, e] of items) {
+    await post(e.path, e.body);
+    pending.delete(key);
+    renderPending();
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  await refreshState();
+};
+$("btn-discard").onclick = () => clearPending();
+renderPending();
+
 async function refreshStatus() {
   const s = await api("/api/status");
   $("status").textContent = s.connected ? "connected: " + s.link : "disconnected";
@@ -31,7 +63,13 @@ function chan() {
 }
 
 async function refreshState() {
-  const st = await api("/api/state");
+  let st;
+  try {
+    st = await api("/api/state");
+  } catch (e) {
+    $("channels").innerHTML = "<pre>refresh failed: " + e.message + "</pre>";
+    return;
+  }
   $("version").textContent = st.version || "";
   const rows = [];
   st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} gate=${c.gate.attackMs}/${c.gate.releaseMs}/${c.gate.holdMs}ms thr=${c.gate.thresholdDb.toFixed(1)}dB`));
@@ -52,7 +90,7 @@ $("btn-sim").onclick = async () => { await post("/api/connect", { simulator: tru
 $("btn-dc").onclick = async () => { await post("/api/disconnect"); await refreshStatus(); };
 $("btn-refresh").onclick = refreshState;
 $("btn-snap").onclick = () => post("/api/snapshot");
-$("btn-revert").onclick = async () => { await post("/api/revert"); await refreshState(); };
+$("btn-revert").onclick = async () => { await post("/api/revert"); clearPending(); await refreshState(); };
 $("btn-meters").onclick = async () => {
   const m = await api("/api/meters");
   $("meters").textContent = m.meters.map((v) => v.toFixed(2)).join(" ");
@@ -73,31 +111,31 @@ $("btn-meters").onclick = async () => {
     g.fillText(names[i], x, cv.height - 2);
   });
 };
-$("btn-gain").onclick = async () => { await post("/api/gain", { chan: chan(), db: Number($("ctl-gain").value) }); await refreshState(); };
-$("btn-delay").onclick = async () => { await post("/api/delay", { chan: chan(), ms: Number($("ctl-delay").value) }); await refreshState(); };
-$("btn-route").onclick = async () => { await post("/api/routing", { chan: chan(), mask: Number($("ctl-route").value) }); await refreshState(); };
-$("btn-mute-on").onclick = async () => { await post("/api/mute", { chan: chan(), on: true }); await refreshState(); };
-$("btn-mute-off").onclick = async () => { await post("/api/mute", { chan: chan(), on: false }); await refreshState(); };
-$("btn-pol-inv").onclick = async () => { await post("/api/polarity", { chan: chan(), invert: true }); await refreshState(); };
-$("btn-pol-norm").onclick = async () => { await post("/api/polarity", { chan: chan(), invert: false }); await refreshState(); };
+$("btn-gain").onclick = () => { const ch = chan(); stage(`gain:${ch}`, `gain ${ch} ${$("ctl-gain").value}dB`, "/api/gain", { chan: ch, db: Number($("ctl-gain").value) }); };
+$("btn-delay").onclick = () => { const ch = chan(); stage(`delay:${ch}`, `delay ${ch} ${$("ctl-delay").value}ms`, "/api/delay", { chan: ch, ms: Number($("ctl-delay").value) }); };
+$("btn-route").onclick = () => { const ch = chan(); stage(`routing:${ch}`, `routing ${ch} mask ${$("ctl-route").value}`, "/api/routing", { chan: ch, mask: Number($("ctl-route").value) }); };
+$("btn-mute-on").onclick = () => { const ch = chan(); stage(`mute:${ch}`, `mute ${ch}`, "/api/mute", { chan: ch, on: true }); };
+$("btn-mute-off").onclick = () => { const ch = chan(); stage(`mute:${ch}`, `unmute ${ch}`, "/api/mute", { chan: ch, on: false }); };
+$("btn-pol-inv").onclick = () => { const ch = chan(); stage(`polarity:${ch}`, `invert ${ch}`, "/api/polarity", { chan: ch, invert: true }); };
+$("btn-pol-norm").onclick = () => { const ch = chan(); stage(`polarity:${ch}`, `polarity normal ${ch}`, "/api/polarity", { chan: ch, invert: false }); };
 
-$("btn-gate").onclick = async () => {
-  await post("/api/gate", {
-    chan: chan(), attackMs: Number($("gate-atk").value), releaseMs: Number($("gate-rel").value),
+$("btn-gate").onclick = () => {
+  const ch = chan();
+  stage(`gate:${ch}`, `gate ${ch}`, "/api/gate", {
+    chan: ch, attackMs: Number($("gate-atk").value), releaseMs: Number($("gate-rel").value),
     holdMs: Number($("gate-hold").value), thresholdDb: Number($("gate-thr").value),
   });
-  await refreshState();
 };
-$("btn-comp").onclick = async () => {
-  await post("/api/compressor", {
-    chan: chan(), ratioIndex: Number($("comp-ratio").value), kneeDb: Number($("comp-knee").value),
+$("btn-comp").onclick = () => {
+  const ch = chan();
+  stage(`comp:${ch}`, `compressor ${ch}`, "/api/compressor", {
+    chan: ch, ratioIndex: Number($("comp-ratio").value), kneeDb: Number($("comp-knee").value),
     attackMs: Number($("comp-atk").value), releaseMs: Number($("comp-rel").value),
     thresholdDb: Number($("comp-thr").value),
   });
-  await refreshState();
 };
-$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); await refreshState(); };
-$("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); await refreshState(); };
+$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); clearPending(); await refreshState(); };
+$("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); clearPending(); await refreshState(); };
 
 $("btn-sig").onclick = async () => {
   await post("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });

@@ -170,6 +170,12 @@ and re-verified live on the bench Mini unless noted.)
   shift later replies one command behind; (2) a drain placed inside
   `write()` ate query replies too — fixed by splitting `write` (no read)
   from `command` (write + drain one ack). The unit itself never wedged.
+- The firmware read path sleeps after ~10 s idle: reads time out while
+  writes still ack. One status (0x10) query re-arms reads (verified:
+  read fails, status ok, read ok, same handle). The transport sends a
+  status wake before any query after 10 s silence, and reopens the
+  handle as a last resort. Earlier "device stopped answering" episodes
+  were all this, never a wedged unit.
 - Gate (0x3e) and compressor (0x30) layouts verified live: InA gate
   10/200/50 ms thr -60 dB and Out4 comp ratio 15 knee 6 atk 5 rel 100
   thr -10 dB both read back exact. Factory defaults observed:

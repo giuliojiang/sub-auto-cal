@@ -15,6 +15,8 @@
     <button id="btn-hw">Connect DSP</button>
     <button id="btn-sim">Simulator</button>
     <button id="btn-dc" class="danger">Disconnect</button>
+    <button id="btn-write" class="primary" disabled>Write (0)</button>
+    <button id="btn-discard" title="drop staged edits">Discard</button>
   </div>
 </header>
 <nav class="tabs">
@@ -118,7 +120,7 @@
         <div id="peq-tabs" role="tablist">
           <button data-out="Out1" class="active">Out1</button><button data-out="Out2">Out2</button><button data-out="Out3">Out3</button><button data-out="Out4">Out4</button>
         </div>
-        <span id="peq-hint">drag a point for frequency + gain, wheel over a point for Q, changes send on release</span>
+        <span id="peq-hint">edits stage locally and preview on the graph — press Write to send them to the device</span>
       </div>
       <canvas id="peq-graph" width="800" height="260"></canvas>
       <div class="grid">
