@@ -8,125 +8,150 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>sub-auto-cal</h1>
+<header class="topbar">
+  <h1>sub-auto-<span>cal</span></h1>
   <div id="conn">
-    <span id="status">disconnected</span>
+    <span id="status" class="pill">disconnected</span>
     <button id="btn-hw">Connect DSP</button>
-    <button id="btn-sim">Connect simulator</button>
-    <button id="btn-dc">Disconnect</button>
+    <button id="btn-sim">Simulator</button>
+    <button id="btn-dc" class="danger">Disconnect</button>
   </div>
 </header>
+<nav class="tabs">
+  <button data-tab="measure" class="active">Measure</button>
+  <button data-tab="dsp">DSP</button>
+  <button data-tab="filters">Filters</button>
+  <button data-tab="calibrate">Calibrate</button>
+  <button data-tab="log">Log</button>
+</nav>
 <main>
-  <section>
-    <h2>Device state <small id="version"></small></h2>
-    <div class="row">
-      <button id="btn-refresh">Refresh</button>
-      <button id="btn-snap">Snapshot</button>
-      <button id="btn-revert">Revert</button>
-      <button id="btn-meters">Meters</button>
-      <span id="meters"></span>
-    </div>
-    <div id="channels"></div>
-  </section>
-  <section>
-    <h2>Output control</h2>
-    <div class="grid">
-      <label>Channel <select id="ctl-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option><option>InA</option><option>InB</option><option>InC</option><option>InD</option></select></label>
-      <label>Gain dB <input id="ctl-gain" type="number" step="0.5" value="-6"><button id="btn-gain">Set</button></label>
-      <label>Delay ms <input id="ctl-delay" type="number" step="0.1" value="0"><button id="btn-delay">Set</button></label>
-      <label>Route mask <input id="ctl-route" type="number" min="0" max="15" value="15"><button id="btn-route">Set</button></label>
-    </div>
-    <div class="grid">
-      <button id="btn-mute-on">Mute</button>
-      <button id="btn-mute-off">Unmute</button>
-      <button id="btn-pol-inv">Invert polarity</button>
-      <button id="btn-pol-norm">Normal polarity</button>
-    </div>
-    <h3>PEQ + crossover designer</h3>
-    <div class="row">
-      <label>Output <select id="peq-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option></select></label>
-      <span id="peq-hint">drag a point for frequency + gain, wheel over a point for Q, changes send on release</span>
-    </div>
-    <canvas id="peq-graph" width="800" height="260"></canvas>
-    <div class="grid">
-      <label>HPF Hz <input id="peq-hpf" type="number" step="any"></label>
-      <label>HPF slope <select id="peq-hpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
-      <label>LPF Hz <input id="peq-lpf" type="number" step="any"></label>
-      <label>LPF slope <select id="peq-lpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
-      <button id="btn-peq-xo">Set crossovers</button>
-    </div>
-    <div id="peq-bands"></div>
-    <h3>Noise gate (inputs)</h3>
-    <div class="grid">
-      <label>Attack ms <input id="gate-atk" type="number" step="any" value="0"></label>
-      <label>Release ms <input id="gate-rel" type="number" step="any" value="0"></label>
-      <label>Hold ms <input id="gate-hold" type="number" step="any" value="0"></label>
-      <label>Threshold dB <input id="gate-thr" type="number" step="any" value="-90"></label>
-      <button id="btn-gate">Set gate</button>
-    </div>
-    <h3>Compressor (outputs)</h3>
-    <div class="grid">
-      <label>Ratio <select id="comp-ratio"><option value="0">1:1.0</option><option value="1">1:1.1</option><option value="2">1:1.3</option><option value="3">1:1.5</option><option value="4">1:1.7</option><option value="5">1:2.0</option><option value="6">1:2.5</option><option value="7">1:3.0</option><option value="8">1:3.5</option><option value="9">1:4.0</option><option value="10">1:5.0</option><option value="11">1:6.0</option><option value="12">1:8.0</option><option value="13">1:10</option><option value="14">1:20</option><option value="15">Limit</option></select></label>
-      <label>Knee dB <input id="comp-knee" type="number" step="any" value="0"></label>
-      <label>Attack ms <input id="comp-atk" type="number" step="any" value="0"></label>
-      <label>Release ms <input id="comp-rel" type="number" step="any" value="0"></label>
-      <label>Threshold dB <input id="comp-thr" type="number" step="any" value="-90"></label>
-      <button id="btn-comp">Set compressor</button>
-    </div>
-    <h3>DSP presets</h3>
-    <div class="grid">
-      <label>Slot 0–29 <input id="preset-slot" type="number" min="0" max="29" value="0"></label>
-      <button id="btn-recall">Recall</button>
-      <button id="btn-store">Store</button>
-    </div>
-    <h3>DSP test signal</h3>
-    <div class="grid">
-      <label>Source <select id="sig-src"><option value="off">Analog in (gen off)</option><option value="pink">Pink noise</option><option value="white">White noise</option><option value="sine">Sine</option></select></label>
-      <label>Sine Hz <input id="sig-freq" type="number" value="1000"></label>
-      <button id="btn-sig">Start / stop</button>
-    </div>
-  </section>
-  <section>
-    <h2>Audio level check</h2>
-    <div class="row">
-      <button id="btn-devs">List devices</button>
-      <label>Playback <select id="nz-play"><option value="">System default</option></select></label>
-      <label>Capture <select id="nz-cap"><option value="">System default</option></select></label>
-      <label>Noise <select id="nz-kind"><option value="pink">Pink</option><option value="white">White</option></select></label>
-      <label>Seconds <input id="nz-sec" type="number" min="1" max="10" value="3"></label>
-      <button id="btn-noise">Play + record + check</button>
-    </div>
-    <pre id="audio-out">No measurement yet. The browser only triggers the check; playback and recording happen in the backend.</pre>
-    <canvas id="wave" width="800" height="160"></canvas>
-    <h3>Microphone calibration (UMIK-1)</h3>
-    <div class="row">
-      <label>Calibration file <input id="mic-file" type="file" accept=".txt,.cal"></label>
-      <label>Orientation <select id="mic-orient"><option value="0">0° (point at speaker)</option><option value="90">90° (point at ceiling)</option></select></label>
-      <label>Expected serial <input id="mic-serial" type="text" placeholder="e.g. 700-1870"></label>
-      <button id="btn-mic">Load</button>
-      <span id="mic-status">no calibration file: results uncalibrated</span>
-    </div>
-  </section>
-  <section>
-    <h2>Optimization loop</h2>
-    <div class="row">
-      <label>Goal start Hz <input id="loop-fstart" type="number" step="any" value="100"></label>
-      <label>Goal end Hz <input id="loop-fend" type="number" step="any" value="8000"></label>
-      <label>Sweep s <input id="loop-secs" type="number" min="2" max="20" value="4"></label>
-      <label>Iters, 0 = until STOP <input id="loop-max" type="number" min="0" max="200" value="6"></label>
-      <button id="btn-go">GO</button>
-      <button id="btn-stop">STOP</button>
-      <span id="loop-status">idle</span>
-    </div>
-    <canvas id="loop-graph" width="800" height="220"></canvas>
-    <div id="loop-best"></div>
-    <div id="loop-timeline"></div>
-  </section>
-  <section>
-    <h2>Write log</h2>
-    <pre id="history"></pre>
-  </section>
+  <div class="tabpage active" id="tab-measure">
+    <section>
+      <h2>Level check</h2>
+      <div class="row">
+        <button id="btn-devs">List devices</button>
+        <label>Playback <select id="nz-play"><option value="">System default</option></select></label>
+        <label>Capture <select id="nz-cap"><option value="">System default</option></select></label>
+        <label>Noise <select id="nz-kind"><option value="pink">Pink</option><option value="white">White</option></select></label>
+        <label>Seconds <input id="nz-sec" type="number" min="1" max="10" value="3"></label>
+        <button id="btn-noise" class="primary">Play + record + check</button>
+      </div>
+      <pre id="audio-out">No measurement yet. The browser only triggers the check; playback and recording happen in the backend.</pre>
+      <canvas id="wave" width="800" height="160"></canvas>
+    </section>
+    <section>
+      <h2>Microphone calibration <small>UMIK-1</small></h2>
+      <div class="row">
+        <label>Calibration file <input id="mic-file" type="file" accept=".txt,.cal"></label>
+        <label>Orientation <select id="mic-orient"><option value="0">0° (point at speaker)</option><option value="90">90° (point at ceiling)</option></select></label>
+        <label>Expected serial <input id="mic-serial" type="text" placeholder="e.g. 700-1870"></label>
+        <button id="btn-mic">Load</button>
+        <span id="mic-status">no calibration file: results uncalibrated</span>
+      </div>
+    </section>
+  </div>
+  <div class="tabpage" id="tab-dsp">
+    <section>
+      <h2>Device state <small id="version"></small></h2>
+      <div class="row">
+        <button id="btn-refresh">Refresh</button>
+        <button id="btn-snap">Snapshot</button>
+        <button id="btn-revert">Revert</button>
+        <button id="btn-meters">Meters</button>
+        <span id="meters"></span>
+      </div>
+      <canvas id="meters-cv" width="640" height="120"></canvas>
+      <div id="channels"></div>
+    </section>
+    <section>
+      <h2>Channel</h2>
+      <div class="grid">
+        <label>Channel <select id="ctl-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option><option>InA</option><option>InB</option><option>InC</option><option>InD</option></select></label>
+        <label>Gain dB <input id="ctl-gain" type="number" step="0.5" value="-6"></label>
+        <button id="btn-gain">Set gain</button>
+        <label>Delay ms <input id="ctl-delay" type="number" step="0.1" value="0"></label>
+        <button id="btn-delay">Set delay</button>
+        <label>Route mask <input id="ctl-route" type="number" min="0" max="15" value="15"></label>
+        <button id="btn-route">Set routing</button>
+      </div>
+      <div class="row">
+        <button id="btn-mute-on">Mute</button>
+        <button id="btn-mute-off">Unmute</button>
+        <button id="btn-pol-inv">Invert polarity</button>
+        <button id="btn-pol-norm">Normal polarity</button>
+      </div>
+      <h3>Noise gate (inputs)</h3>
+      <div class="grid">
+        <label>Attack ms <input id="gate-atk" type="number" step="any" value="0"></label>
+        <label>Release ms <input id="gate-rel" type="number" step="any" value="0"></label>
+        <label>Hold ms <input id="gate-hold" type="number" step="any" value="0"></label>
+        <label>Threshold dB <input id="gate-thr" type="number" step="any" value="-90"></label>
+        <button id="btn-gate">Set gate</button>
+      </div>
+      <h3>Compressor (outputs)</h3>
+      <div class="grid">
+        <label>Ratio <select id="comp-ratio"><option value="0">1:1.0</option><option value="1">1:1.1</option><option value="2">1:1.3</option><option value="3">1:1.5</option><option value="4">1:1.7</option><option value="5">1:2.0</option><option value="6">1:2.5</option><option value="7">1:3.0</option><option value="8">1:3.5</option><option value="9">1:4.0</option><option value="10">1:5.0</option><option value="11">1:6.0</option><option value="12">1:8.0</option><option value="13">1:10</option><option value="14">1:20</option><option value="15">Limit</option></select></label>
+        <label>Knee dB <input id="comp-knee" type="number" step="any" value="0"></label>
+        <label>Attack ms <input id="comp-atk" type="number" step="any" value="0"></label>
+        <label>Release ms <input id="comp-rel" type="number" step="any" value="0"></label>
+        <label>Threshold dB <input id="comp-thr" type="number" step="any" value="-90"></label>
+        <button id="btn-comp">Set compressor</button>
+      </div>
+      <h3>DSP presets</h3>
+      <div class="grid">
+        <label>Slot 0–29 <input id="preset-slot" type="number" min="0" max="29" value="0"></label>
+        <button id="btn-recall">Recall</button>
+        <button id="btn-store">Store</button>
+      </div>
+      <h3>Test signal</h3>
+      <div class="grid">
+        <label>Source <select id="sig-src"><option value="off">Analog in (gen off)</option><option value="pink">Pink noise</option><option value="white">White noise</option><option value="sine">Sine</option></select></label>
+        <label>Sine Hz <input id="sig-freq" type="number" value="1000"></label>
+        <button id="btn-sig">Start / stop</button>
+      </div>
+    </section>
+  </div>
+  <div class="tabpage" id="tab-filters">
+    <section>
+      <h2>PEQ + crossover designer</h2>
+      <div class="row">
+        <label>Output <select id="peq-chan"><option>Out1</option><option>Out2</option><option>Out3</option><option>Out4</option></select></label>
+        <span id="peq-hint">drag a point for frequency + gain, wheel over a point for Q, changes send on release</span>
+      </div>
+      <canvas id="peq-graph" width="800" height="260"></canvas>
+      <div class="grid">
+        <label>HPF Hz <input id="peq-hpf" type="number" step="any"></label>
+        <label>HPF slope <select id="peq-hpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
+        <label>LPF Hz <input id="peq-lpf" type="number" step="any"></label>
+        <label>LPF slope <select id="peq-lpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
+        <button id="btn-peq-xo">Set crossovers</button>
+      </div>
+      <div id="peq-bands"></div>
+    </section>
+  </div>
+  <div class="tabpage" id="tab-calibrate">
+    <section>
+      <h2>Optimization loop</h2>
+      <div class="row">
+        <label>Goal start Hz <input id="loop-fstart" type="number" step="any" value="100"></label>
+        <label>Goal end Hz <input id="loop-fend" type="number" step="any" value="8000"></label>
+        <label>Sweep s <input id="loop-secs" type="number" min="2" max="20" value="4"></label>
+        <label>Iters, 0 = until STOP <input id="loop-max" type="number" min="0" max="200" value="0"></label>
+        <button id="btn-go" class="primary">GO</button>
+        <button id="btn-stop" class="danger">STOP</button>
+        <span id="loop-status">idle</span>
+      </div>
+      <canvas id="loop-graph" width="800" height="220"></canvas>
+      <div id="loop-best"></div>
+      <div id="loop-timeline"></div>
+    </section>
+  </div>
+  <div class="tabpage" id="tab-log">
+    <section>
+      <h2>Write log</h2>
+      <pre id="history"></pre>
+    </section>
+  </div>
 </main>
 <script src="app.js"></script>
 <script src="peq.js"></script>

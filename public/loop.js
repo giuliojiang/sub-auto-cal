@@ -10,7 +10,7 @@ function drawLoop(state) {
   const W = cv.width;
   const H = cv.height;
   g.clearRect(0, 0, W, H);
-  g.fillStyle = "#f4f4f2";
+  g.fillStyle = "#101215";
   g.fillRect(0, 0, W, H);
   if (!state.timeline.length) return;
   let lo = Infinity;
@@ -27,12 +27,12 @@ function drawLoop(state) {
   g.font = "10px system-ui";
   for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) {
     const x = loopLogX(f, W);
-    g.strokeStyle = "#ddd";
+    g.strokeStyle = "#2c313a";
     g.beginPath();
     g.moveTo(x + 0.5, 0);
     g.lineTo(x + 0.5, H);
     g.stroke();
-    g.fillStyle = "#666";
+    g.fillStyle = "#9aa0aa";
     g.fillText(f >= 1000 ? f / 1000 + "k" : String(f), x + 2, H - 4);
   }
   const line = (t, color, width) => {
@@ -48,11 +48,11 @@ function drawLoop(state) {
     g.stroke();
     g.lineWidth = 1;
   };
-  line(state.timeline[0], "#999", 1);
+  line(state.timeline[0], "#555", 1);
   const best = state.timeline[state.bestIter];
-  if (best && state.bestIter !== 0) line(best, "#1c1c1c", 2);
+  if (best && state.bestIter !== 0) line(best, "#e8a33d", 2);
   const last = state.timeline[state.timeline.length - 1];
-  if (last && last !== best && last.iter !== 0) line(last, "#777", 1);
+  if (last && last !== best && last.iter !== 0) line(last, "#9aa0aa", 1);
 }
 
 function renderLoop(state) {

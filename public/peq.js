@@ -92,27 +92,27 @@ function drawPeq() {
   const H = cv.height;
   const out = peqOut();
   g.clearRect(0, 0, W, H);
-  g.fillStyle = "#f4f4f2";
+  g.fillStyle = "#101215";
   g.fillRect(0, 0, W, H);
   g.font = "10px system-ui";
   for (const f of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) {
     const x = peqX(f, W);
-    g.strokeStyle = "#ddd";
+    g.strokeStyle = "#2c313a";
     g.beginPath();
     g.moveTo(x + 0.5, 0);
     g.lineTo(x + 0.5, H);
     g.stroke();
-    g.fillStyle = "#666";
+    g.fillStyle = "#9aa0aa";
     g.fillText(f >= 1000 ? f / 1000 + "k" : String(f), x + 2, H - 4);
   }
   for (const db of [12, 6, 0, -6, -12, -18]) {
     const y = peqY(db, H);
-    g.strokeStyle = db === 0 ? "#999" : "#e2e2e2";
+    g.strokeStyle = db === 0 ? "#555" : "#23272e";
     g.beginPath();
     g.moveTo(0, y + 0.5);
     g.lineTo(W, y + 0.5);
     g.stroke();
-    g.fillStyle = "#666";
+    g.fillStyle = "#9aa0aa";
     g.fillText((db > 0 ? "+" : "") + db, 4, y - 2);
   }
   const grid = [];
@@ -120,7 +120,7 @@ function drawPeq() {
   g.lineWidth = 1;
   for (const b of out.bands) {
     if (b.bypass) continue;
-    g.strokeStyle = "#bbb";
+    g.strokeStyle = "#5c6672";
     g.beginPath();
     grid.forEach((f, i) => {
       const x = ((i + 0.5) / PEQ_POINTS) * W;
@@ -130,7 +130,7 @@ function drawPeq() {
     });
     g.stroke();
   }
-  g.strokeStyle = "#1c1c1c";
+  g.strokeStyle = "#e8a33d";
   g.lineWidth = 2;
   g.beginPath();
   grid.forEach((f, i) => {
@@ -144,7 +144,7 @@ function drawPeq() {
   for (const [fc, lp] of [[out.hpfHz, false], [out.lpfHz, true]]) {
     if (!fc) continue;
     const x = peqX(Math.max(PEQ_FMIN, Math.min(PEQ_FMAX, fc)), W);
-    g.fillStyle = "#666";
+    g.fillStyle = "#9aa0aa";
     g.beginPath();
     if (lp) {
       g.moveTo(x, 8);
@@ -162,11 +162,11 @@ function drawPeq() {
     const y = peqY(b.gainDb, H);
     g.beginPath();
     g.arc(x, y, i === peqDrag ? 8 : 6, 0, 2 * Math.PI);
-    g.fillStyle = b.bypass ? "#f4f4f2" : "#1c1c1c";
+    g.fillStyle = b.bypass ? "#101215" : "#e8a33d";
     g.fill();
-    g.strokeStyle = "#1c1c1c";
+    g.strokeStyle = "#e8a33d";
     g.stroke();
-    g.fillStyle = b.bypass ? "#1c1c1c" : "#fff";
+    g.fillStyle = b.bypass ? "#e8a33d" : "#14161a";
     g.fillText(String(i + 1), x - 3, y + 3);
   });
 }

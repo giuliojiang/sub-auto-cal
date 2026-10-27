@@ -14,7 +14,17 @@ function post(path, data) {
 async function refreshStatus() {
   const s = await api("/api/status");
   $("status").textContent = s.connected ? "connected: " + s.link : "disconnected";
+  $("status").classList.toggle("on", !!s.connected);
 }
+
+document.querySelectorAll("nav.tabs button").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("nav.tabs button").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(".tabpage").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById("tab-" + b.dataset.tab).classList.add("active");
+  };
+});
 
 function chan() {
   return $("ctl-chan").value;
@@ -46,6 +56,22 @@ $("btn-revert").onclick = async () => { await post("/api/revert"); await refresh
 $("btn-meters").onclick = async () => {
   const m = await api("/api/meters");
   $("meters").textContent = m.meters.map((v) => v.toFixed(2)).join(" ");
+  const cv = document.getElementById("meters-cv");
+  const g = cv.getContext("2d");
+  const names = ["InA", "InB", "InC", "InD", "Out1", "Out2", "Out3", "Out4"];
+  g.clearRect(0, 0, cv.width, cv.height);
+  g.fillStyle = "#101215";
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.font = "10px system-ui";
+  m.meters.forEach((v, i) => {
+    const x = 8 + i * ((cv.width - 16) / 8);
+    const bw = (cv.width - 16) / 8 - 8;
+    const h = Math.max(1, v * (cv.height - 28));
+    g.fillStyle = v > 0.9 ? "#d9534f" : "#e8a33d";
+    g.fillRect(x, cv.height - 14 - h, bw, h);
+    g.fillStyle = "#9aa0aa";
+    g.fillText(names[i], x, cv.height - 2);
+  });
 };
 $("btn-gain").onclick = async () => { await post("/api/gain", { chan: chan(), db: Number($("ctl-gain").value) }); await refreshState(); };
 $("btn-delay").onclick = async () => { await post("/api/delay", { chan: chan(), ms: Number($("ctl-delay").value) }); await refreshState(); };
@@ -93,14 +119,14 @@ function drawWave(peaks) {
   const cv = $("wave");
   const g = cv.getContext("2d");
   g.clearRect(0, 0, cv.width, cv.height);
-  g.fillStyle = "#f4f4f2";
+  g.fillStyle = "#101215";
   g.fillRect(0, 0, cv.width, cv.height);
-  g.strokeStyle = "#999";
+  g.strokeStyle = "#555";
   g.beginPath();
   g.moveTo(0, cv.height / 2 + 0.5);
   g.lineTo(cv.width, cv.height / 2 + 0.5);
   g.stroke();
-  g.fillStyle = "#1c1c1c";
+  g.fillStyle = "#e8a33d";
   const bw = cv.width / peaks.length;
   peaks.forEach((p, i) => {
     const h = Math.max(1, p * cv.height * 0.95);
