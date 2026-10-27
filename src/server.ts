@@ -108,7 +108,47 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
         q: Number(body?.q),
         gainDb: Number(body?.gainDb),
         type: Number(body?.type ?? 0),
+        bypass: Boolean(body?.bypass),
       });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
+  },
+  "POST /api/gate": async (_req, res, body) => {
+    try {
+      await needDevice().setGate(parseChan(body?.chan), {
+        attackMs: Number(body?.attackMs ?? 0),
+        releaseMs: Number(body?.releaseMs ?? 0),
+        holdMs: Number(body?.holdMs ?? 0),
+        thresholdDb: Number(body?.thresholdDb ?? -90),
+      });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
+  },
+  "POST /api/compressor": async (_req, res, body) => {
+    try {
+      const ratio = Number(body?.ratioIndex ?? 0);
+      if (!Number.isInteger(ratio) || ratio < 0 || ratio > 15) throw new Error("ratioIndex must be 0-15");
+      await needDevice().setCompressor(parseChan(body?.chan), {
+        ratioIndex: ratio,
+        kneeDb: Number(body?.kneeDb ?? 0),
+        attackMs: Number(body?.attackMs ?? 0),
+        releaseMs: Number(body?.releaseMs ?? 0),
+        thresholdDb: Number(body?.thresholdDb ?? -90),
+      });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
+  },
+  "POST /api/preset": async (_req, res, body) => {
+    try {
+      const slot = Number(body?.slot);
+      if (body?.action === "store") await needDevice().storePreset(slot);
+      else await needDevice().recallPreset(slot);
       json(res, 200, { ok: true });
     } catch (err) {
       json(res, 400, { error: String(err) });
@@ -190,7 +230,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
     try {
       const seconds = Math.max(1, Math.min(10, Number(body?.seconds ?? 3)));
       const kind = body?.kind === "white" ? "white" : "pink";
-      json(res, 200, await noiseCheck(seconds, kind));
+      json(res, 200, await noiseCheck(seconds, kind, body?.playbackId, body?.captureId));
     } catch (err) {
       json(res, 500, { error: String(err) });
     }
@@ -201,7 +241,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
       const gen = body?.kind === "white" ? genWhiteNoise : genPinkNoise;
       const path = join(mkdtempSync(join(tmpdir(), "subcal-")), "play.wav");
       writeWav(path, gen(seconds));
-      await playWav(path);
+      await playWav(path, body?.playbackId);
       json(res, 200, { ok: true });
     } catch (err) {
       json(res, 500, { error: String(err) });

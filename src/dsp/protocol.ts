@@ -223,6 +223,53 @@ export function routingFrame(outChan: number, inputMask: number): Uint8Array {
   return buildRequest(CMD.routing, Uint8Array.of(outChan & 0xff, inputMask & 0xff));
 }
 
+export interface GateParams {
+  attackMs: number;
+  releaseMs: number;
+  holdMs: number;
+  thresholdDb: number;
+}
+
+export function gateFrame(chan: number, g: GateParams): Uint8Array {
+  return buildRequest(
+    CMD.gate,
+    Uint8Array.of(
+      chan & 0xff,
+      ...u16le(g.attackMs),
+      ...u16le(g.releaseMs),
+      ...u16le(g.holdMs),
+      ...u16le(thresholdDbToRaw(g.thresholdDb)),
+    ),
+  );
+}
+
+export interface CompParams {
+  ratioIndex: number;
+  kneeDb: number;
+  attackMs: number;
+  releaseMs: number;
+  thresholdDb: number;
+}
+
+export const COMP_RATIOS = [
+  "1:1.0", "1:1.1", "1:1.3", "1:1.5", "1:1.7", "1:2.0", "1:2.5", "1:3.0",
+  "1:3.5", "1:4.0", "1:5.0", "1:6.0", "1:8.0", "1:10", "1:20", "Limit",
+] as const;
+
+export function compressorFrame(chan: number, c: CompParams): Uint8Array {
+  return buildRequest(
+    CMD.compressor,
+    Uint8Array.of(
+      chan & 0xff,
+      c.ratioIndex & 0xff,
+      c.kneeDb & 0xff,
+      ...u16le(c.attackMs),
+      ...u16le(c.releaseMs),
+      ...u16le(thresholdDbToRaw(c.thresholdDb)),
+    ),
+  );
+}
+
 export function signalFrame(source: number, freqHz?: number): Uint8Array {
   let idx = 0;
   if (freqHz !== undefined) {
@@ -259,6 +306,28 @@ export function storePresetFrame(slot: number): Uint8Array {
   return buildRequest(CMD.storePreset, Uint8Array.of(slot & 0xff));
 }
 
+export interface GateState {
+  attackMs: number;
+  releaseMs: number;
+  holdMs: number;
+  thresholdDb: number;
+}
+
+export interface CompState {
+  ratioIndex: number;
+  kneeDb: number;
+  attackMs: number;
+  releaseMs: number;
+  thresholdDb: number;
+}
+
+export interface InputState {
+  name: string;
+  gainDb: number;
+  polarity: boolean;
+  gate: GateState;
+}
+
 export interface ChannelState {
   name: string;
   gainDb: number;
@@ -270,11 +339,12 @@ export interface ChannelState {
   lpfHz: number | null;
   lpfSlope: number;
   bands: { freqHz: number; q: number; gainDb: number; type: number }[];
+  comp: CompState;
 }
 
 export interface DeviceState {
   version: string;
-  inputs: { name: string; gainDb: number; polarity: boolean }[];
+  inputs: InputState[];
   outputs: ChannelState[];
   meters: number[];
 }
@@ -299,6 +369,12 @@ export function parsePresetImage(img: Uint8Array): { presetName: string; inputs:
     name: decodeStr(img, base, 10),
     gainDb: gainRawToDb(u16(img, base + 18)),
     polarity: img[base + 20] !== 0,
+    gate: {
+      attackMs: u16(img, base + 10),
+      releaseMs: u16(img, base + 12),
+      holdMs: u16(img, base + 14),
+      thresholdDb: thresholdRawToDb(u16(img, base + 16)),
+    },
   }));
   const outputs = [112, 186, 260, 334].map((base) => {
     const hpfRaw = u16(img, base + 10);
@@ -324,6 +400,13 @@ export function parsePresetImage(img: Uint8Array): { presetName: string; inputs:
           type: img[o + 5] as number,
         };
       }),
+      comp: {
+        ratioIndex: img[base + 58] as number,
+        kneeDb: img[base + 59] as number,
+        attackMs: u16(img, base + 60),
+        releaseMs: u16(img, base + 62),
+        thresholdDb: thresholdRawToDb(u16(img, base + 64)),
+      },
     };
   });
   return { presetName: decodeStr(img, 2, 14), inputs, outputs };

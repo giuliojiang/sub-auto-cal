@@ -17,7 +17,9 @@ import {
   levelFrame,
   peqFrame,
   crossoverFrame,
+  compressorFrame,
   delayFrame,
+  gateFrame,
   routingFrame,
   signalFrame,
   pollFrame,
@@ -105,6 +107,24 @@ describe("command layouts", () => {
     assert.deepEqual([...routingFrame(4, 3).slice(5, 8)], [0x3a, 4, 3]);
     assert.deepEqual([...signalFrame(1).slice(5, 8)], [0x39, 1, 0]);
   });
+  it("gate frame carries [chan, atk16, rel16, hold16, thr16]", () => {
+    const f = gateFrame(0, { attackMs: 10, releaseMs: 200, holdMs: 50, thresholdDb: -60 });
+    assert.equal(f[5], 0x3e);
+    assert.equal(f[6], 0);
+    assert.equal((f[7] as number) | ((f[8] as number) << 8), 10);
+    assert.equal((f[9] as number) | ((f[10] as number) << 8), 200);
+    assert.equal((f[11] as number) | ((f[12] as number) << 8), 50);
+    assert.equal((f[13] as number) | ((f[14] as number) << 8), 60);
+  });
+  it("compressor frame carries [chan, ratio, knee, atk16, rel16, thr16]", () => {
+    const f = compressorFrame(4, { ratioIndex: 15, kneeDb: 6, attackMs: 5, releaseMs: 100, thresholdDb: -10 });
+    assert.equal(f[5], 0x30);
+    assert.deepEqual([f[6], f[7]], [4, 15]);
+    assert.equal(f[8], 6);
+    assert.equal((f[9] as number) | ((f[10] as number) << 8), 5);
+    assert.equal((f[11] as number) | ((f[12] as number) << 8), 100);
+    assert.equal((f[13] as number) | ((f[14] as number) << 8), 160);
+  });
 });
 
 describe("simulator round-trip", () => {
@@ -135,6 +155,19 @@ describe("simulator round-trip", () => {
     await dev.revert();
     const st = await dev.refresh();
     assert.equal(st.outputs[1]!.gainDb, 0);
+  });
+  it("gate and compressor round-trip, including revert", async () => {
+    const dev = new DspDevice(new DspSimulator());
+    await dev.connect();
+    await dev.takeSnapshot();
+    await dev.setGate(0, { attackMs: 10, releaseMs: 200, holdMs: 50, thresholdDb: -60 });
+    await dev.setCompressor(4, { ratioIndex: 15, kneeDb: 6, attackMs: 5, releaseMs: 100, thresholdDb: -10 });
+    let st = await dev.refresh();
+    assert.deepEqual(st.inputs[0]!.gate, { attackMs: 10, releaseMs: 200, holdMs: 50, thresholdDb: -60 });
+    assert.deepEqual(st.outputs[0]!.comp, { ratioIndex: 15, kneeDb: 6, attackMs: 5, releaseMs: 100, thresholdDb: -10 });
+    await dev.revert();
+    st = await dev.refresh();
+    assert.deepEqual(st.inputs[0]!.gate, { attackMs: 0, releaseMs: 0, holdMs: 0, thresholdDb: -90 });
   });
   it("preset image parser reads the simulator image", async () => {
     const sim = new DspSimulator();

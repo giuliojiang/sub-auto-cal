@@ -150,3 +150,10 @@ Inputs InA..InD are 0x00..0x03, outputs Out1..Out4 are 0x04..0x07.
   shift later replies one command behind; (2) a drain placed inside
   `write()` ate query replies too — fixed by splitting `write` (no read)
   from `command` (write + drain one ack). The unit itself never wedged.
+- Gate (0x3e) and compressor (0x30) layouts verified live: InA gate
+  10/200/50 ms thr -60 dB and Out4 comp ratio 15 knee 6 atk 5 rel 100
+  thr -10 dB both read back exact. Factory defaults observed:
+  gate 49/499/99 ms thr -90 dB; comp ratio 0 knee 0 atk 49 rel 499
+  thr +20 dB.
+- Preset store/recall verified live on slot 29: stored, changed Out4 to
+  -9 dB, recalled, Out4 back to the stored value.

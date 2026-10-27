@@ -24,9 +24,9 @@ async function refreshState() {
   const st = await api("/api/state");
   $("version").textContent = st.version || "";
   const rows = [];
-  st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"}`));
+  st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} gate=${c.gate.attackMs}/${c.gate.releaseMs}/${c.gate.holdMs}ms thr=${c.gate.thresholdDb.toFixed(1)}dB`));
   st.outputs.forEach((c, i) => {
-    rows.push(`Out${i + 1} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} route=${c.routingMask} delay=${c.delayMs.toFixed(2)}ms hpf=${c.hpfHz ? c.hpfHz.toFixed(1) + "Hz" : "off"} lpf=${c.lpfHz ? c.lpfHz.toFixed(1) + "Hz" : "off"}`);
+    rows.push(`Out${i + 1} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} route=${c.routingMask} delay=${c.delayMs.toFixed(2)}ms hpf=${c.hpfHz ? c.hpfHz.toFixed(1) + "Hz" : "off"} lpf=${c.lpfHz ? c.lpfHz.toFixed(1) + "Hz" : "off"} comp=r${c.comp.ratioIndex}/k${c.comp.kneeDb}/${c.comp.attackMs}/${c.comp.releaseMs}ms thr=${c.comp.thresholdDb.toFixed(1)}dB`);
     c.bands.forEach((b, j) => {
       if (Math.abs(b.gainDb) > 0.01) rows.push(`  band${j}: ${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB type=${b.type}`);
     });
@@ -57,9 +57,27 @@ $("btn-peq").onclick = async () => {
   await post("/api/peq", {
     chan: chan(), band: Number($("peq-band").value), freqHz: Number($("peq-freq").value),
     q: Number($("peq-q").value), gainDb: Number($("peq-gain").value), type: Number($("peq-type").value),
+    bypass: $("peq-bypass").checked,
   });
   await refreshState();
 };
+$("btn-gate").onclick = async () => {
+  await post("/api/gate", {
+    chan: chan(), attackMs: Number($("gate-atk").value), releaseMs: Number($("gate-rel").value),
+    holdMs: Number($("gate-hold").value), thresholdDb: Number($("gate-thr").value),
+  });
+  await refreshState();
+};
+$("btn-comp").onclick = async () => {
+  await post("/api/compressor", {
+    chan: chan(), ratioIndex: Number($("comp-ratio").value), kneeDb: Number($("comp-knee").value),
+    attackMs: Number($("comp-atk").value), releaseMs: Number($("comp-rel").value),
+    thresholdDb: Number($("comp-thr").value),
+  });
+  await refreshState();
+};
+$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); await refreshState(); };
+$("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); await refreshState(); };
 $("btn-xo").onclick = async () => {
   await post("/api/crossover", {
     chan: chan(), highPass: $("xo-side").value === "hpf",
@@ -71,16 +89,26 @@ $("btn-sig").onclick = async () => {
   await post("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });
   await refreshState();
 };
+function fill(sel, items) {
+  const cur = $(sel).value;
+  $(sel).innerHTML = '<option value="">System default</option>' + items.map((d) => `<option>${d}</option>`).join("");
+  if ([...$(sel).options].some((o) => o.value === cur)) $(sel).value = cur;
+}
 $("btn-devs").onclick = async () => {
   const d = await api("/api/audio/devices");
+  fill("nz-play", d.playback);
+  fill("nz-cap", d.capture);
   $("audio-out").textContent = "PLAYBACK:\n" + d.playback.join("\n") + "\n\nCAPTURE:\n" + d.capture.join("\n");
 };
 $("btn-noise").onclick = async () => {
   $("audio-out").textContent = "Playing and recording…";
-  const r = await post("/api/audio/noise-check", { kind: $("nz-kind").value, seconds: Number($("nz-sec").value) });
+  const r = await post("/api/audio/noise-check", {
+    kind: $("nz-kind").value, seconds: Number($("nz-sec").value),
+    playbackId: $("nz-play").value || undefined, captureId: $("nz-cap").value || undefined,
+  });
   $("audio-out").textContent =
     `verdict: ${r.verdict}\npeak: ${r.peakDbfs.toFixed(1)} dBFS\nrms: ${r.rmsDbfs.toFixed(1)} dBFS\n` +
-    `clipped: ${r.clipped}\nrate: ${r.sampleRate} Hz\nrecording: ${r.recordingFile}`;
+    `clipped: ${r.clipped}\nrate: ${r.sampleRate} Hz\nplayback: ${r.playbackId}\ncapture: ${r.captureId}\nrecording: ${r.recordingFile}`;
 };
 
 refreshStatus();

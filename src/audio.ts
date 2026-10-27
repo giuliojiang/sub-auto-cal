@@ -144,15 +144,25 @@ export function analyzeLevel(samples: Float32Array): LevelReport {
   return { peakDbfs, rmsDbfs, clipped, verdict };
 }
 
-export async function playWav(path: string): Promise<void> {
-  const paplay = await run("paplay", [path]);
+export async function playWav(path: string, playbackId?: string): Promise<void> {
+  const extra = playbackId?.startsWith("pulse:") ? ["--device=" + playbackId.slice(6)] : [];
+  const paplay = await run("paplay", [...extra, path]);
   if (paplay.code === 0) return;
   const ap = await run("aplay", ["-q", path]);
   if (ap.code !== 0) throw new Error(`no audio player worked (paplay, aplay): ${ap.out.slice(0, 200)}`);
 }
 
-export async function recordWav(path: string, seconds: number, sr = SAMPLE_RATE): Promise<void> {
-  const ar = await run("arecord", ["-q", "-r", String(sr), "-c", "1", "-f", "S16_LE", "-t", "wav", "-d", String(Math.ceil(seconds)), path]);
+export function alsaHwId(label: string): string | null {
+  const m = /card (\d+).*device (\d+)/.exec(label);
+  return m ? `hw:${m[1]},${m[2]}` : null;
+}
+
+export async function recordWav(path: string, seconds: number, sr = SAMPLE_RATE, captureId?: string): Promise<void> {
+  const hw = captureId ? alsaHwId(captureId) : null;
+  const args = ["-q", "-r", String(sr), "-c", "1", "-f", "S16_LE", "-t", "wav"];
+  if (hw) args.push("-D", hw);
+  args.push("-d", String(Math.ceil(seconds)), path);
+  const ar = await run("arecord", args);
   if (ar.code !== 0) throw new Error(`arecord failed: ${ar.out.slice(0, 200)}`);
 }
 
@@ -161,17 +171,24 @@ export interface NoiseCheckResult extends LevelReport {
   recordingFile: string;
   sampleRate: number;
   seconds: number;
+  playbackId: string;
+  captureId: string;
 }
 
-export async function noiseCheck(seconds = 3, kind: "pink" | "white" = "pink"): Promise<NoiseCheckResult> {
+export async function noiseCheck(
+  seconds = 3,
+  kind: "pink" | "white" = "pink",
+  playbackId?: string,
+  captureId?: string,
+): Promise<NoiseCheckResult> {
   const dir = mkdtempSync(join(tmpdir(), "subcal-"));
   const stim = join(dir, "stim.wav");
   const rec = join(dir, "rec.wav");
   const gen = kind === "pink" ? genPinkNoise : genWhiteNoise;
   writeWav(stim, gen(seconds));
-  const play = run("paplay", [stim]).then((r) => (r.code === 0 ? r : run("aplay", ["-q", stim])));
+  const play = playWav(stim, playbackId).catch((e) => ({ code: 1, out: String(e) }));
   await new Promise((res) => setTimeout(res, 250));
-  await recordWav(rec, seconds + 1);
+  await recordWav(rec, seconds + 1, SAMPLE_RATE, captureId);
   await play;
   const { samples, sampleRate } = readWav(rec);
   const keepDir = join(process.cwd(), "recordings");
@@ -179,7 +196,7 @@ export async function noiseCheck(seconds = 3, kind: "pink" | "white" = "pink"): 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const kept = join(keepDir, `noise-check-${stamp}.wav`);
   writeFileSync(kept, readFileSync(rec));
-  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds };
+  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds, playbackId: playbackId ?? "default", captureId: captureId ?? "default" };
 }
 
 export async function defaultRate(): Promise<number> {

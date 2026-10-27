@@ -55,7 +55,7 @@ export class DspSimulator implements DspLink {
   muted: boolean[] = new Array(8).fill(false);
   signal = { source: 0, freq: 0 };
   private outs: SimChannel[] = [makeOut("Out1", 4), makeOut("Out2", 5), makeOut("Out3", 6), makeOut("Out4", 7)];
-  private ins = ["InA", "InB", "InC", "InD"].map((name) => ({ name, gainRaw: 281, polarity: false }));
+  private ins = ["InA", "InB", "InC", "InD"].map((name) => ({ name, gainRaw: 281, polarity: false, gate: [0, 0, 0, 0] }));
   private lastWrite: Uint8Array | null = null;
 
   async write(frame: Uint8Array): Promise<void> {
@@ -114,6 +114,21 @@ export class DspSimulator implements DspLink {
       out(data[0] as number).delay = (data[1] as number) | ((data[2] as number) << 8);
     } else if (code === CMD.routing) {
       out(data[0] as number).routing = data[1] as number;
+    } else if (code === CMD.gate) {
+      const g = this.ins[data[0] as number]?.gate;
+      if (g) {
+        g[0] = (data[1] as number) | ((data[2] as number) << 8);
+        g[1] = (data[3] as number) | ((data[4] as number) << 8);
+        g[2] = (data[5] as number) | ((data[6] as number) << 8);
+        g[3] = (data[7] as number) | ((data[8] as number) << 8);
+      }
+    } else if (code === CMD.compressor) {
+      const c = out(data[0] as number).comp;
+      c[0] = data[1] as number;
+      c[1] = data[2] as number;
+      c[2] = (data[3] as number) | ((data[4] as number) << 8);
+      c[3] = (data[5] as number) | ((data[6] as number) << 8);
+      c[4] = (data[7] as number) | ((data[8] as number) << 8);
     } else if (code === CMD.testSignal) {
       this.signal = { source: data[0] as number, freq: data[1] as number };
     }
@@ -155,6 +170,10 @@ export class DspSimulator implements DspLink {
     this.ins.forEach((inp, i) => {
       const b = inBase[i] as number;
       setStr(b, inp.name, 10);
+      set16(b + 10, inp.gate[0]);
+      set16(b + 12, inp.gate[1]);
+      set16(b + 14, inp.gate[2]);
+      set16(b + 16, inp.gate[3]);
       set16(b + 18, inp.gainRaw);
       img[b + 20] = inp.polarity ? 1 : 0;
     });
@@ -174,6 +193,11 @@ export class DspSimulator implements DspLink {
         img[at + 4] = band.q;
         img[at + 5] = band.type;
       });
+      img[b + 58] = o.comp[0];
+      img[b + 59] = o.comp[1];
+      set16(b + 60, o.comp[2]);
+      set16(b + 62, o.comp[3]);
+      set16(b + 64, o.comp[4]);
       set16(b + 66, o.gainRaw);
       img[b + 68] = o.polarity ? 1 : 0;
       set16(b + 70, o.delay);

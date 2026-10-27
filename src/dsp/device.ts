@@ -1,16 +1,22 @@
 import {
   CMD,
+  compressorFrame,
   crossoverFrame,
   delayFrame,
+  gateFrame,
   levelsFromReply,
   muteFrame,
   parsePresetImage,
   peqFrame,
   polarityFrame,
   levelFrame,
+  recallPresetFrame,
   routingFrame,
   signalFrame,
+  storePresetFrame,
+  type CompParams,
   type DeviceState,
+  type GateParams,
   type PeqParams,
 } from "./protocol.ts";
 import type { DspLink } from "./link.ts";
@@ -139,6 +145,28 @@ export class DspDevice {
     this.log(`signal source=${source}${freqHz ? ` hz=${freqHz}` : ""}`);
   }
 
+  async setGate(chan: number, g: GateParams): Promise<void> {
+    await this.link.command(gateFrame(chan, g));
+    this.log(`gate ch=${chan} atk=${g.attackMs} rel=${g.releaseMs} hold=${g.holdMs} thr=${g.thresholdDb}dB`);
+  }
+
+  async setCompressor(chan: number, c: CompParams): Promise<void> {
+    await this.link.command(compressorFrame(chan, c));
+    this.log(`comp ch=${chan} ratio=${c.ratioIndex} knee=${c.kneeDb} atk=${c.attackMs} rel=${c.releaseMs} thr=${c.thresholdDb}dB`);
+  }
+
+  async recallPreset(slot: number): Promise<void> {
+    if (!Number.isInteger(slot) || slot < 0 || slot > 29) throw new Error("preset slot must be 0-29");
+    await this.link.command(recallPresetFrame(slot));
+    this.log(`recall preset=${slot}`);
+  }
+
+  async storePreset(slot: number): Promise<void> {
+    if (!Number.isInteger(slot) || slot < 0 || slot > 29) throw new Error("preset slot must be 0-29");
+    await this.link.command(storePresetFrame(slot));
+    this.log(`store preset=${slot}`);
+  }
+
   async takeSnapshot(): Promise<void> {
     this.snapshot = await this.refresh();
   }
@@ -147,8 +175,10 @@ export class DspDevice {
     const s = this.snapshot;
     if (!s) return null;
     for (let i = 0; i < 4; i++) {
-      await this.setGain(i, s.inputs[i]!.gainDb);
-      if (s.inputs[i]!.polarity) await this.setPolarity(i, true);
+      const inp = s.inputs[i]!;
+      await this.setGain(i, inp.gainDb);
+      if (inp.polarity) await this.setPolarity(i, true);
+      await this.setGate(i, { ...inp.gate });
     }
     for (let o = 0; o < 4; o++) {
       const ch = 4 + o;
@@ -157,6 +187,7 @@ export class DspDevice {
       await this.setPolarity(ch, out.polarity);
       await this.setRouting(ch, out.routingMask);
       await this.setDelay(ch, out.delayMs);
+      await this.setCompressor(ch, { ...out.comp });
       for (let b = 0; b < 7; b++) {
         const band = out.bands[b]!;
         await this.setPeq(ch, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: band.type });
