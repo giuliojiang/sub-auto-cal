@@ -6,6 +6,8 @@ const PEQ_BOT = -24;
 const PEQ_POINTS = 240;
 let peqState = null;
 let peqDrag = -1;
+const peqBypass = new Set();
+const peqKey = (o, b) => o + ":" + b;
 
 function rbjCoeffs(kind, f0, q, gainDb) {
   const A = Math.pow(10, gainDb / 40);
@@ -58,7 +60,6 @@ function xoDb(lp, f, fc, slope) {
 }
 
 function bandDb(band, f) {
-  if (band.bypass) return 0;
   const t = band.type;
   if (t === 0) return biquadDb(rbjCoeffs("peak", band.freqHz, band.q, band.gainDb), f);
   if (t === 1) return biquadDb(rbjCoeffs("lshelf", band.freqHz, band.q, band.gainDb), f);
@@ -69,8 +70,11 @@ function bandDb(band, f) {
 }
 
 function outTotal(out, f) {
+  const oi = peqOutIdx();
   let s = xoDb(false, f, out.hpfHz, out.hpfSlope) + xoDb(true, f, out.lpfHz, out.lpfSlope);
-  for (const b of out.bands) s += bandDb(b, f);
+  out.bands.forEach((b, i) => {
+    if (!peqIsBypassed(oi, i)) s += bandDb(b, f);
+  });
   return s;
 }
 
@@ -80,8 +84,15 @@ function peqChan() {
 }
 
 function peqOut() {
-  const idx = Number(peqChan().replace("Out", "")) - 1;
-  return peqState.outputs[idx];
+  return peqState.outputs[peqOutIdx()];
+}
+
+function peqOutIdx() {
+  return Number(peqChan().replace("Out", "")) - 1;
+}
+
+function peqIsBypassed(o, b) {
+  return peqBypass.has(peqKey(o, b));
 }
 
 const peqX = (f, w) => (Math.log(f / PEQ_FMIN) / Math.log(PEQ_FMAX / PEQ_FMIN)) * w;
@@ -96,6 +107,7 @@ function drawPeq() {
   const W = cv.width;
   const H = cv.height;
   const out = peqOut();
+  const oi = peqOutIdx();
   g.clearRect(0, 0, W, H);
   g.fillStyle = "#101215";
   g.fillRect(0, 0, W, H);
@@ -123,8 +135,9 @@ function drawPeq() {
   const grid = [];
   for (let i = 0; i < PEQ_POINTS; i++) grid.push(peqF(((i + 0.5) / PEQ_POINTS) * W, W));
   g.lineWidth = 1;
-  for (const b of out.bands) {
-    if (b.bypass) continue;
+  for (let bi = 0; bi < out.bands.length; bi++) {
+    const b = out.bands[bi];
+    if (peqIsBypassed(oi, bi)) continue;
     g.strokeStyle = "#5c6672";
     g.beginPath();
     grid.forEach((f, i) => {
@@ -167,11 +180,11 @@ function drawPeq() {
     const y = peqY(b.gainDb, H);
     g.beginPath();
     g.arc(x, y, i === peqDrag ? 8 : 6, 0, 2 * Math.PI);
-    g.fillStyle = b.bypass ? "#101215" : "#e8a33d";
+    g.fillStyle = peqIsBypassed(oi, i) ? "#101215" : "#e8a33d";
     g.fill();
-    g.strokeStyle = b.bypass ? "#5c6672" : "#e8a33d";
+    g.strokeStyle = peqIsBypassed(oi, i) ? "#5c6672" : "#e8a33d";
     g.stroke();
-    g.fillStyle = b.bypass ? "#5c6672" : "#14161a";
+    g.fillStyle = peqIsBypassed(oi, i) ? "#5c6672" : "#14161a";
     g.fillText(String(i + 1), x - 3, y + 3);
   });
 }
@@ -196,12 +209,14 @@ function buildBandRows() {
     row.querySelector('[data-a="set"]').onclick = () => peqPostBand(i, false);
     row.querySelector('[data-a="reset"]').onclick = () => peqPostBand(i, true);
     row.querySelector('[data-k="bypass"]').onchange = (e) => {
-      peqOut().bands[i].bypass = e.target.checked;
+      const on = e.target.checked;
+      if (on) peqBypass.add(peqKey(peqOutIdx(), i));
+      else peqBypass.delete(peqKey(peqOutIdx(), i));
       syncPill(i);
       drawPeq();
       const chan = peqChan();
       const b = peqOut().bands[i];
-      stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: b.bypass });
+      stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: on });
     };
     host.appendChild(row);
   }
@@ -209,7 +224,7 @@ function buildBandRows() {
 
 function syncPill(i) {
   const row = document.getElementById("peq-bands").children[i];
-  const off = peqOut().bands[i].bypass;
+  const off = peqIsBypassed(peqOutIdx(), i);
   row.classList.toggle("bypassed", off);
   const pill = row.querySelector(".peq-pill");
   pill.textContent = off ? "BYPASSED" : "ACTIVE";
@@ -232,7 +247,9 @@ function peqPostBand(i, reset) {
   const p = reset
     ? { freqHz: peqOut().bands[i].freqHz, q: 1.4, gainDb: 0, type: 0, bypass: false }
     : peqReadRow(i);
-  Object.assign(peqOut().bands[i], p);
+  Object.assign(peqOut().bands[i], { type: p.type, freqHz: p.freqHz, q: p.q, gainDb: p.gainDb });
+  if (p.bypass) peqBypass.add(peqKey(peqOutIdx(), i));
+  else peqBypass.delete(peqKey(peqOutIdx(), i));
   fillPeq();
   drawPeq();
   stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, ...peqReadRow(i) });
@@ -240,6 +257,7 @@ function peqPostBand(i, reset) {
 
 function fillPeq() {
   const out = peqOut();
+  const oi = peqOutIdx();
   const rows = document.getElementById("peq-bands").children;
   out.bands.forEach((b, i) => {
     const q = (k) => rows[i].querySelector(`[data-k="${k}"]`);
@@ -247,7 +265,7 @@ function fillPeq() {
     q("freqHz").value = b.freqHz.toFixed(1);
     q("q").value = b.q.toFixed(2);
     q("gainDb").value = b.gainDb.toFixed(1);
-    q("bypass").checked = !!b.bypass;
+    q("bypass").checked = peqIsBypassed(oi, i);
     syncPill(i);
   });
   document.getElementById("peq-hpf").value = out.hpfHz ? out.hpfHz.toFixed(1) : "";
@@ -262,6 +280,14 @@ window.refreshPeq = function (st) {
   document.getElementById("peq-bands").style.display = "";
   fillPeq();
   drawPeq();
+};
+
+window.clearPeqBypass = function () {
+  peqBypass.clear();
+  if (peqState) {
+    fillPeq();
+    drawPeq();
+  }
 };
 
 window.peqFailed = function () {
@@ -341,7 +367,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const stageBand = (i) => {
     const chan = peqChan();
     const b = peqOut().bands[i];
-    stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: b.bypass });
+    stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, freqHz: b.freqHz, q: b.q, gainDb: b.gainDb, type: b.type, bypass: peqIsBypassed(peqOutIdx(), i) });
   };
   window.addEventListener("mouseup", () => {
     if (peqDrag < 0) return;

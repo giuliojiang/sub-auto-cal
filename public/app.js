@@ -88,12 +88,12 @@ async function refreshState() {
   $("history").textContent = h.map((e) => `${e.time} [${e.target}] ${e.what}`).join("\n") || "(no writes yet)";
 }
 
-$("btn-hw").onclick = async () => { await post("/api/connect", {}); await refreshStatus(); await refreshState(); };
-$("btn-sim").onclick = async () => { await post("/api/connect", { simulator: true }); await refreshStatus(); await refreshState(); };
+$("btn-hw").onclick = async () => { await post("/api/connect", {}); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshStatus(); await refreshState(); };
+$("btn-sim").onclick = async () => { await post("/api/connect", { simulator: true }); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshStatus(); await refreshState(); };
 $("btn-dc").onclick = async () => { await post("/api/disconnect"); await refreshStatus(); };
 $("btn-refresh").onclick = refreshState;
 $("btn-snap").onclick = () => post("/api/snapshot");
-$("btn-revert").onclick = async () => { await post("/api/revert"); clearPending(); await refreshState(); };
+$("btn-revert").onclick = async () => { await post("/api/revert"); clearPending(); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshState(); };
 $("btn-meters").onclick = async () => {
   const m = await api("/api/meters");
   $("meters").textContent = m.meters.map((v) => v.toFixed(2)).join(" ");
@@ -137,7 +137,7 @@ $("btn-comp").onclick = () => {
     thresholdDb: Number($("comp-thr").value),
   });
 };
-$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); clearPending(); await refreshState(); };
+$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); clearPending(); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshState(); };
 $("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); clearPending(); await refreshState(); };
 
 $("btn-sig").onclick = async () => {
