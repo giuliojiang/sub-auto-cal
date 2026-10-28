@@ -67,7 +67,7 @@ function renderLoop(state) {
     return `<tr><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${f}</td></tr>`;
   });
   $("loop-timeline").innerHTML = rows.length
-    ? `<table><tr><th>iter</th><th>kind</th><th></th><th>F</th><th>mean</th><th>loss</th><th>J</th><th>filters</th></tr>${rows.join("")}</table>`
+    ? `<table><tr><th>iter</th><th>kind</th><th></th><th title="Flatness error in dB: RMS deviation of the measured shape from the target (flat lowcut to end, minus 12 dB per octave below lowcut). Lower is flatter; overall level changes do not affect it.">F</th><th title="Mean SPL in dB across the goal range, start to end.">mean</th><th title="Level lost versus the baseline measurement in dB: baseline mean minus candidate mean. Negative means the candidate got louder.">loss</th><th title="Score the optimizer minimizes: J equals F plus loss. One dB of flatness trades one-for-one with one dB of level.">J</th><th>filters</th></tr>${rows.join("")}</table>`
     : "";
   const basis = state.cal ? `calibrated: ${state.cal.fileName} SERNO ${state.cal.serial} ${state.cal.orientation} (Sens ${state.cal.sensDb}dB)` : "uncalibrated dBFS — no mic file loaded";
   const best = state.timeline[state.bestIter];
