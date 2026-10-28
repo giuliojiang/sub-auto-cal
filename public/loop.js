@@ -35,6 +35,18 @@ function drawLoop(state) {
     g.fillStyle = "#9aa0aa";
     g.fillText(f >= 1000 ? f / 1000 + "k" : String(f), x + 2, H - 4);
   }
+  const span = hi - lo;
+  const dstep = span > 60 ? 20 : span > 30 ? 10 : span > 12 ? 5 : span > 6 ? 2 : 1;
+  for (let v = Math.ceil(lo / dstep) * dstep; v <= hi; v += dstep) {
+    const y = Y(v);
+    g.strokeStyle = "#23272e";
+    g.beginPath();
+    g.moveTo(0, y + 0.5);
+    g.lineTo(W, y + 0.5);
+    g.stroke();
+    g.fillStyle = "#9aa0aa";
+    g.fillText((v > 0 ? "+" : "") + v, 4, y - 2);
+  }
   const line = (t, color, width) => {
     g.strokeStyle = color;
     g.lineWidth = width;
