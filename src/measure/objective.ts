@@ -8,22 +8,30 @@ export interface Scored {
   cost: number;
 }
 
-export function scoreResponse(grid: Float32Array, db: Float32Array, fStart: number, fEnd: number, baseMean: number): Scored {
+export function targetCurve(f: number, fLowcut: number): number {
+  if (f >= fLowcut) return 0;
+  return -12 * Math.log2(fLowcut / Math.max(1e-9, f));
+}
+
+export function scoreResponse(grid: Float32Array, db: Float32Array, fStart: number, fLowcut: number, fEnd: number, baseMean: number): Scored {
   let sum = 0;
+  let sumT = 0;
   let n = 0;
   for (let i = 0; i < grid.length; i++) {
     const f = grid[i] as number;
     if (f >= fStart && f <= fEnd) {
       sum += db[i] as number;
+      sumT += targetCurve(f, fLowcut);
       n++;
     }
   }
   const mean = n ? sum / n : 0;
+  const meanErr = n ? (sum - sumT) / n : 0;
   let sq = 0;
   for (let i = 0; i < grid.length; i++) {
     const f = grid[i] as number;
     if (f >= fStart && f <= fEnd) {
-      const d = (db[i] as number) - mean;
+      const d = (db[i] as number) - targetCurve(f, fLowcut) - meanErr;
       sq += d * d;
     }
   }

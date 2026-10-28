@@ -27,6 +27,7 @@ import type { DspDevice } from "../dsp/device.ts";
 
 export interface LoopConfig {
   fStart: number;
+  fLowcut: number;
   fEnd: number;
   sweepSecs: number;
   maxIter: number;
@@ -111,7 +112,7 @@ export class LoopRunner {
 
   private async measure(dev: DspDevice, c: Candidate | null): Promise<{ scored: Scored; prov: CalProvenance | null; response: TimelineEntry["response"] }> {
     if (c) await this.pushCandidate(dev, c);
-    const { fStart, fEnd, sweepSecs, playbackId, captureId } = this.config;
+    const { fStart, fLowcut, fEnd, sweepSecs, playbackId, captureId } = this.config;
     const sweep = genESS(fStart / 2, Math.min(20000, fEnd * 2), sweepSecs);
     const dir = mkdtempSync(join(tmpdir(), "subloop-"));
     const stimFile = join(dir, "stim.wav");
@@ -135,7 +136,7 @@ export class LoopRunner {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     writeFileSync(join(keepDir, `loop-iter-${this.timeline.length}-${stamp}.wav`), readFileSync(recFile));
     const base = this.baseline?.mean ?? 0;
-    const scored = scoreResponse(grid, corrected, fStart, fEnd, base);
+    const scored = scoreResponse(grid, corrected, fStart, fLowcut, fEnd, base);
     return { scored, prov: calEntry?.prov ?? null, response: { freqs: [...grid], db: [...corrected] } };
   }
 

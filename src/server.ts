@@ -232,10 +232,12 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
       if (loop?.running) throw new Error("loop already running; STOP it first");
       if (!device) throw new Error("connect the DSP or simulator first");
       const fStart = Number(body?.fStart ?? 100);
+      const fLowcut = Number(body?.fLowcut ?? 200);
       const fEnd = Number(body?.fEnd ?? 8000);
-      if (!(fStart >= 20 && fEnd <= 20000 && fStart < fEnd)) throw new Error("need 20 <= fStart < fEnd <= 20000");
+      if (!(fStart >= 20 && fLowcut <= 20000 && fEnd <= 20000 && fStart < fLowcut && fLowcut < fEnd)) throw new Error("need 20 <= start < lowcut < end <= 20000");
       loop = new LoopRunner({
         fStart,
+        fLowcut,
         fEnd,
         sweepSecs: Math.max(2, Math.min(20, Number(body?.sweepSecs ?? 4))),
         maxIter: Math.max(0, Math.min(200, Number(body?.maxIter ?? 6))),

@@ -92,6 +92,7 @@ async function pollLoop() {
 $("btn-go").onclick = async () => {
   await post("/api/loop/start", {
     fStart: Number($("loop-fstart").value),
+    fLowcut: Number($("loop-flowcut").value),
     fEnd: Number($("loop-fend").value),
     sweepSecs: Number($("loop-secs").value),
     maxIter: Number($("loop-max").value),

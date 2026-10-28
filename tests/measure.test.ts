@@ -17,6 +17,7 @@ import {
   validCandidate,
   mutateCandidate,
   deviceStateToCandidate,
+  targetCurve,
 } from "../src/measure/objective.ts";
 import {
   parseMicCal,
@@ -92,7 +93,7 @@ describe("objective", () => {
   const flat = new Float32Array(100).fill(-20);
 
   it("flat response scores F=0", () => {
-    const s = scoreResponse(grid, flat, 100, 8000, -20);
+    const s = scoreResponse(grid, flat, 100, 100, 8000, -20);
     assert.equal(s.flatness, 0);
     assert.equal(s.loss, 0);
     assert.equal(s.cost, 0);
@@ -100,10 +101,41 @@ describe("objective", () => {
 
   it("uniform level shift changes loss and cost but not flatness", () => {
     const down = new Float32Array(100).fill(-22);
-    const s = scoreResponse(grid, down, 100, 8000, -20);
+    const s = scoreResponse(grid, down, 100, 100, 8000, -20);
     assert.equal(s.flatness, 0);
     assert.equal(s.loss, 2);
     assert.equal(s.cost, 2);
+  });
+
+  it("target is flat above lowcut and falls 12dB per octave below", () => {
+    assert.equal(targetCurve(400, 400), 0);
+    assert.equal(targetCurve(8000, 400), 0);
+    assert.equal(targetCurve(200, 400), -12);
+    assert.equal(targetCurve(100, 400), -24);
+    assert.equal(targetCurve(50, 400), -36);
+  });
+
+  it("response following the shaped target scores F=0", () => {
+    const g = logGrid(100, 8000, 200);
+    const shaped = Float32Array.from(g, (f) => -20 + targetCurve(f as number, 400));
+    const s = scoreResponse(g, shaped, 100, 400, 8000, -20);
+    assert.ok(s.flatness < 1e-5, `F=${s.flatness}`);
+    assert.ok(Math.abs(s.cost - s.loss) < 1e-5);
+  });
+
+  it("flat response scores shape error against a declining target", () => {
+    const s = scoreResponse(grid, flat, 100, 400, 8000, -20);
+    assert.ok(s.flatness > 1, `F=${s.flatness}`);
+  });
+
+  it("uniform shift under a shaped target changes loss but not flatness", () => {
+    const g = logGrid(100, 8000, 100);
+    const base = Float32Array.from(g, (f) => -20 + targetCurve(f as number, 400));
+    const down = Float32Array.from(base, (v) => v - 2);
+    const s0 = scoreResponse(g, base, 100, 400, 8000, -20);
+    const s1 = scoreResponse(g, down, 100, 400, 8000, -20);
+    assert.ok(Math.abs(s1.flatness - s0.flatness) < 1e-5);
+    assert.ok(Math.abs(s1.loss - s0.loss - 2) < 1e-5);
   });
 
   it("reproduces the brief worked examples", () => {
@@ -127,9 +159,9 @@ describe("objective", () => {
     const base = new Float32Array(400).fill(-20);
     const spiky = Float32Array.from(base);
     spiky[200] = 10;
-    const raw = scoreResponse(fine, spiky, 100, 8000, -20);
+    const raw = scoreResponse(fine, spiky, 100, 150, 8000, -20);
     const sm = smoothOctave(fine, spiky, 1 / 12);
-    const ssm = scoreResponse(fine, sm, 100, 8000, -20);
+    const ssm = scoreResponse(fine, sm, 100, 150, 8000, -20);
     assert.ok(Math.abs(raw.flatness - ssm.flatness) > 0.5);
   });
 
