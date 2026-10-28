@@ -9,20 +9,21 @@ import {
   logGrid,
   interpLog,
   smoothOctave,
-  applyBiquads,
   MEASURE_RATE,
 } from "./sweep.ts";
 import {
   scoreResponse,
   markPareto,
-  findPeaks,
-  initialCandidate,
   mutateCandidate,
+  deviceStateToCandidate,
+  cloneCandidate,
   IMPROVE_DB,
   type Candidate,
+  type ChannelBase,
   type Scored,
 } from "./objective.ts";
 import { applyCal, type MicCal, type CalProvenance } from "./miccal.ts";
+import type { DspDevice } from "../dsp/device.ts";
 
 export interface LoopConfig {
   fStart: number;
@@ -32,6 +33,7 @@ export interface LoopConfig {
   playbackId?: string;
   captureId?: string;
   getCal?: () => { cal: MicCal; prov: CalProvenance } | null;
+  getDevice?: () => DspDevice | null;
 }
 
 export interface TimelineEntry {
@@ -91,14 +93,30 @@ export class LoopRunner {
     this.stopAsked = true;
   }
 
-  private async measure(c: Candidate): Promise<{ scored: Scored; prov: CalProvenance | null; response: TimelineEntry["response"] }> {
+  private types: number[][] = [];
+  private bases: ChannelBase[] = [];
+
+  private async pushCandidate(dev: DspDevice, c: Candidate): Promise<void> {
+    for (let o = 0; o < 4; o++) {
+      const ch = c.channels[o]!;
+      const chan = 4 + o;
+      await dev.setGain(chan, ch.gainDb);
+      await dev.setDelay(chan, ch.delayMs);
+      for (let b = 0; b < 7; b++) {
+        const band = ch.bands[b]!;
+        await dev.setPeq(chan, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: this.types[o]![b] ?? 0, bypass: false });
+      }
+    }
+  }
+
+  private async measure(dev: DspDevice, c: Candidate | null): Promise<{ scored: Scored; prov: CalProvenance | null; response: TimelineEntry["response"] }> {
+    if (c) await this.pushCandidate(dev, c);
     const { fStart, fEnd, sweepSecs, playbackId, captureId } = this.config;
     const sweep = genESS(fStart / 2, Math.min(20000, fEnd * 2), sweepSecs);
-    const stim = applyBiquads(sweep, c.bands, c.gainDb);
     const dir = mkdtempSync(join(tmpdir(), "subloop-"));
     const stimFile = join(dir, "stim.wav");
     const recFile = join(dir, "rec.wav");
-    writeWav(stimFile, stim);
+    writeWav(stimFile, sweep);
     const tail = 1.5;
     const play = playWav(stimFile, playbackId).catch(() => ({ code: 1, out: "" }));
     await new Promise((res) => setTimeout(res, 250));
@@ -126,23 +144,27 @@ export class LoopRunner {
     this.running = true;
     this.stopAsked = false;
     try {
-      const base = await this.measure({ bands: [], gainDb: 0 });
+      const dev = this.config.getDevice?.() ?? null;
+      if (!dev) throw new Error("connect the DSP or simulator first");
+      await dev.takeSnapshot();
+      const state = await dev.refresh();
+      this.types = state.outputs.map((o) => o.bands.map((b) => b.type));
+      const start = deviceStateToCandidate(state);
+      this.bases = start.bases;
+      const base = await this.measure(dev, null);
       this.baseline = { ...base.scored, loss: 0, cost: base.scored.flatness };
-      this.timeline.push({ iter: 0, kind: "baseline", candidate: { bands: [], gainDb: 0 }, scored: this.baseline, pareto: true, cal: base.prov, response: base.response });
-      const grid = Float32Array.from(base.response.freqs);
-      const db = Float32Array.from(base.response.db);
-      const first = initialCandidate(findPeaks(grid, db, this.config.fStart, this.config.fEnd, this.baseline.mean), this.config.fStart, this.config.fEnd);
-      let best: Candidate = { bands: [], gainDb: 0 };
+      this.timeline.push({ iter: 0, kind: "baseline", candidate: start.candidate, scored: this.baseline, pareto: true, cal: base.prov, response: base.response });
+      let best: Candidate = cloneCandidate(start.candidate);
       let bestCost = this.baseline.cost;
       for (let iter = 1; (this.config.maxIter <= 0 || iter <= this.config.maxIter) && !this.stopAsked; iter++) {
         const large = iter % 4 === 0;
-        const current = iter === 1 ? first : mutateCandidate(best, this.config.fStart, this.config.fEnd, large);
-        const m = await this.measure(current);
+        const current = mutateCandidate(best, this.bases, this.config.fStart, this.config.fEnd, large);
+        const m = await this.measure(dev, current);
         if (m.scored.cost < bestCost - IMPROVE_DB) {
           bestCost = m.scored.cost;
-          best = JSON.parse(JSON.stringify(current));
+          best = cloneCandidate(current);
         }
-        this.timeline.push({ iter, kind: large ? "mutation" : iter === 1 ? "initial" : "tweak", candidate: JSON.parse(JSON.stringify(current)), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
+        this.timeline.push({ iter, kind: large ? "mutation" : "tweak", candidate: cloneCandidate(current), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
       }
     } finally {
       this.running = false;

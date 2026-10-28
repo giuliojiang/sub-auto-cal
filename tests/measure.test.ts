@@ -16,7 +16,7 @@ import {
   findPeaks,
   validCandidate,
   mutateCandidate,
-  initialCandidate,
+  deviceStateToCandidate,
 } from "../src/measure/objective.ts";
 import {
   parseMicCal,
@@ -141,9 +141,7 @@ describe("objective", () => {
     }
     const peaks = findPeaks(grid, bumpy, 100, 8000, -20);
     assert.equal(peaks.length, 2);
-    const c = initialCandidate(peaks, 100, 8000);
-    assert.ok(validCandidate(c, 100, 8000));
-    assert.ok(c.bands.every((b) => b.gainDb < 0));
+    assert.ok(Math.abs(Math.log2(peaks[0]!.freqHz / peaks[1]!.freqHz)) >= 1 / 6);
   });
 });
 
@@ -184,14 +182,60 @@ describe("umik calibration file", () => {
   });
 });
 
-describe("candidate invariants", () => {
-  it("mutations never boost, add bands, crowd, or leave range", () => {
-    const c0 = { bands: [{ freqHz: 300, q: 2, gainDb: -6 }, { freqHz: 2000, q: 2, gainDb: -4 }], gainDb: -1 };
+describe("resume invariants", () => {
+  const loaded = {
+    outputs: [0, 1, 2, 3].map(() => ({
+      bands: Array.from({ length: 7 }, (_, i) => ({ freqHz: 100 * Math.pow(2, i), q: 1, gainDb: i < 2 ? -3 : 0 })),
+      gainDb: -1,
+      delayMs: 2,
+    })),
+  };
+
+  it("device state maps to a valid starting candidate", () => {
+    const { candidate, bases } = deviceStateToCandidate(loaded);
+    assert.equal(candidate.channels.length, 4);
+    assert.equal(candidate.channels[0]!.bands.length, 7);
+    assert.ok(validCandidate(candidate, bases, 100, 8000));
+    assert.equal(bases[0]!.gainDb, -1);
+    assert.equal(bases[0]!.delayMs, 2);
+  });
+
+  it("mutations never boost, crowd audible cuts, or leave device ranges", () => {
+    const { candidate, bases } = deviceStateToCandidate(loaded);
     for (let i = 0; i < 300; i++) {
       for (const large of [false, true]) {
-        const c = mutateCandidate(c0, 100, 8000, large);
-        assert.ok(validCandidate(c, 100, 8000), JSON.stringify(c));
+        const c = mutateCandidate(candidate, bases, 100, 8000, large);
+        assert.ok(validCandidate(c, bases, 100, 8000), JSON.stringify(c));
+        for (let o = 0; o < 4; o++) {
+          const ch = c.channels[o]!;
+          assert.ok(ch.gainDb <= 0 && ch.gainDb >= -4, `gain ${ch.gainDb}`);
+          assert.ok(ch.delayMs >= 2 && ch.delayMs <= 3.47, `delay ${ch.delayMs}`);
+          assert.equal(ch.bands.length, 7);
+          for (const b of ch.bands) assert.ok(b.gainDb <= 0, `band ${b.gainDb}`);
+        }
       }
     }
+  });
+
+  it("rejects boosts, stacked audible cuts, and out-of-range moves", () => {
+    const { candidate, bases } = deviceStateToCandidate(loaded);
+    const copy = () => JSON.parse(JSON.stringify(candidate));
+    const boosted = copy();
+    boosted.channels[0]!.bands[0]!.gainDb = 1;
+    assert.equal(validCandidate(boosted, bases, 100, 8000), false);
+    const stacked = copy();
+    stacked.channels[1]!.bands[0]!.gainDb = -6;
+    stacked.channels[1]!.bands[1]!.gainDb = -6;
+    stacked.channels[1]!.bands[1]!.freqHz = stacked.channels[1]!.bands[0]!.freqHz;
+    assert.equal(validCandidate(stacked, bases, 100, 8000), false);
+    const loud = copy();
+    loud.channels[2]!.gainDb = 0.5;
+    assert.equal(validCandidate(loud, bases, 100, 8000), false);
+    const late = copy();
+    late.channels[3]!.delayMs = 10;
+    assert.equal(validCandidate(late, bases, 100, 8000), false);
+    const short = copy();
+    short.channels.pop();
+    assert.equal(validCandidate(short, bases, 100, 8000), false);
   });
 });

@@ -58,9 +58,13 @@ function drawLoop(state) {
 function renderLoop(state) {
   $("loop-status").textContent = state.running ? `running, iter ${state.timeline.length}` : state.timeline.length ? "done" : "idle";
   drawLoop(state);
+  const chanShort = (ch, o) => {
+    const f = ch.bands.filter((b) => b.gainDb < -0.05).map((b) => `${b.freqHz.toFixed(0)}/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}`).join(" ") || "—";
+    return `O${o + 1}[${f}]g${ch.gainDb.toFixed(1)}d${ch.delayMs.toFixed(2)}`;
+  };
   const rows = state.timeline.map((t) => {
-    const f = t.candidate.bands.map((b) => `${b.freqHz.toFixed(0)}Hz/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}dB`).join(" ") || "—";
-    return `<tr><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${f} g${t.candidate.gainDb.toFixed(1)}</td></tr>`;
+    const f = t.candidate.channels.map(chanShort).join(" ");
+    return `<tr><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${f}</td></tr>`;
   });
   $("loop-timeline").innerHTML = rows.length
     ? `<table><tr><th>iter</th><th>kind</th><th></th><th>F</th><th>mean</th><th>loss</th><th>J</th><th>filters</th></tr>${rows.join("")}</table>`
@@ -69,8 +73,8 @@ function renderLoop(state) {
   const best = state.timeline[state.bestIter];
   $("loop-best").innerHTML = best
     ? `<pre>best: iter ${best.iter} J=${best.scored.cost.toFixed(2)} (F=${best.scored.flatness.toFixed(2)} loss=${best.scored.loss.toFixed(2)})\n` +
-      `filters: ${best.candidate.bands.map((b) => `${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB`).join(", ") || "none"}  gain ${best.candidate.gainDb.toFixed(1)}dB\n` +
-      `${basis}\nDSP deployment once speakers are wired.</pre>`
+      best.candidate.channels.map((ch, o) => `Out${o + 1}: ${ch.bands.map((b) => `${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB`).join(", ")}  gain ${ch.gainDb.toFixed(1)}dB  delay ${ch.delayMs.toFixed(2)}ms`).join("\n") + `\n` +
+      `${basis}\nRuns against the connected DSP; STOP then apply or revert from the DSP tab snapshot.</pre>`
     : "";
 }
 

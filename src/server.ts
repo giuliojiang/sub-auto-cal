@@ -230,6 +230,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   "POST /api/loop/start": async (_req, res, body) => {
     try {
       if (loop?.running) throw new Error("loop already running; STOP it first");
+      if (!device) throw new Error("connect the DSP or simulator first");
       const fStart = Number(body?.fStart ?? 100);
       const fEnd = Number(body?.fEnd ?? 8000);
       if (!(fStart >= 20 && fEnd <= 20000 && fStart < fEnd)) throw new Error("need 20 <= fStart < fEnd <= 20000");
@@ -241,6 +242,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
         playbackId: body?.playbackId,
         captureId: body?.captureId ?? (await defaultCaptureId()),
         getCal: () => micCal,
+        getDevice: () => device,
       });
       void loop.run();
       json(res, 200, { ok: true });

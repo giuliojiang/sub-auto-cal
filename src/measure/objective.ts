@@ -68,70 +68,131 @@ export function findPeaks(grid: Float32Array, db: Float32Array, fStart: number, 
   return picked;
 }
 
-export interface Candidate {
-  bands: { freqHz: number; q: number; gainDb: number }[];
+export const DELAY_RANGE_MS = 1.46;
+export const BANDS_PER_CHANNEL = 7;
+export const CHANNELS = 4;
+
+export interface OptBand {
+  freqHz: number;
+  q: number;
   gainDb: number;
 }
 
-export function validCandidate(c: Candidate, fLo: number, fHi: number): boolean {
-  if (c.bands.length > 2) return false;
-  if (c.gainDb > 0 || c.gainDb < -3) return false;
-  for (const b of c.bands) {
-    if (b.gainDb > 0 || b.gainDb < -12) return false;
-    if (b.freqHz < fLo || b.freqHz > fHi) return false;
-    if (b.q < 0.4 || b.q > 128) return false;
+export interface OptChannel {
+  bands: OptBand[];
+  gainDb: number;
+  delayMs: number;
+}
+
+export interface Candidate {
+  channels: OptChannel[];
+}
+
+export interface ChannelBase {
+  gainDb: number;
+  delayMs: number;
+}
+
+export interface DeviceSnapshot {
+  outputs: { bands: { freqHz: number; q: number; gainDb: number }[]; gainDb: number; delayMs: number }[];
+}
+
+export function deviceStateToCandidate(s: DeviceSnapshot): { candidate: Candidate; bases: ChannelBase[] } {
+  const channels = s.outputs.slice(0, CHANNELS).map((o) => ({
+    bands: o.bands.slice(0, BANDS_PER_CHANNEL).map((b) => ({ freqHz: b.freqHz, q: b.q, gainDb: b.gainDb })),
+    gainDb: o.gainDb,
+    delayMs: o.delayMs,
+  }));
+  const bases = channels.map((c) => ({ gainDb: c.gainDb, delayMs: c.delayMs }));
+  return { candidate: { channels }, bases };
+}
+
+export function cloneCandidate(c: Candidate): Candidate {
+  return { channels: c.channels.map((ch) => ({ bands: ch.bands.map((b) => ({ ...b })), gainDb: ch.gainDb, delayMs: ch.delayMs })) };
+}
+
+export function validCandidate(c: Candidate, bases: ChannelBase[], _fLo: number, _fHi: number): boolean {
+  void _fLo;
+  void _fHi;
+  if (c.channels.length !== CHANNELS || bases.length !== CHANNELS) return false;
+  for (let o = 0; o < CHANNELS; o++) {
+    const ch = c.channels[o]!;
+    const base = bases[o]!;
+    if (ch.bands.length !== BANDS_PER_CHANNEL) return false;
+    if (ch.gainDb > Math.min(base.gainDb, 0) + 1e-9 || ch.gainDb < base.gainDb - 3 - 1e-9) return false;
+    if (ch.delayMs < base.delayMs - 1e-9 || ch.delayMs > base.delayMs + DELAY_RANGE_MS + 1e-9) return false;
+    for (const b of ch.bands) {
+      if (b.gainDb > 0 || b.gainDb < -12) return false;
+      if (!(b.freqHz >= 20 && b.freqHz <= 20000)) return false;
+      if (b.q < 0.4 || b.q > 128) return false;
+    }
+    const audible = ch.bands.filter((b) => b.gainDb < -0.5);
+    for (let i = 0; i < audible.length; i++)
+      for (let j = i + 1; j < audible.length; j++)
+        if (Math.abs(Math.log2(audible[i]!.freqHz / audible[j]!.freqHz)) < 1 / 6) return false;
   }
-  for (let i = 0; i < c.bands.length; i++)
-    for (let j = i + 1; j < c.bands.length; j++)
-      if (Math.abs(Math.log2(c.bands[i]!.freqHz / c.bands[j]!.freqHz)) < 1 / 6) return false;
   return true;
 }
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+const pick = (n: number) => Math.floor(Math.random() * n);
 
-export function initialCandidate(peaks: Peak[], fLo: number, fHi: number): Candidate {
-  const bands = peaks.slice(0, 2).map((p) => ({
-    freqHz: Math.max(fLo, Math.min(fHi, p.freqHz)),
-    q: Math.max(0.5, Math.min(10, p.q)),
-    gainDb: Math.max(-12, -p.heightDb),
-  }));
-  return { bands, gainDb: 0 };
-}
-
-export function mutateCandidate(c: Candidate, fLo: number, fHi: number, large: boolean): Candidate {
+export function mutateCandidate(c: Candidate, bases: ChannelBase[], fLo: number, fHi: number, large: boolean): Candidate {
   for (let tries = 0; tries < 50; tries++) {
-    const next: Candidate = { bands: c.bands.map((b) => ({ ...b })), gainDb: c.gainDb };
+    const next = cloneCandidate(c);
     const step = (span: number) => (large ? rnd(-span, span) : rnd(-span / 4, span / 4));
-    if (large) {
-      for (const b of next.bands) {
-        b.freqHz *= Math.pow(2, rnd(-0.7, 0.7));
-        b.q = Math.max(0.4, Math.min(20, b.q * Math.pow(2, rnd(-1, 1))));
-        b.gainDb += rnd(-6, 6);
+    const clampChannel = (o: number) => {
+      const ch = next.channels[o]!;
+      const base = bases[o]!;
+      ch.gainDb = Math.max(base.gainDb - 3, Math.min(Math.min(base.gainDb, 0), ch.gainDb));
+      ch.delayMs = Math.max(base.delayMs, Math.min(base.delayMs + DELAY_RANGE_MS, ch.delayMs));
+      for (const b of ch.bands) {
+        b.freqHz = Math.max(20, Math.min(20000, b.freqHz));
+        b.gainDb = Math.max(-12, Math.min(0, b.gainDb));
+        b.q = Math.max(0.4, Math.min(128, b.q));
       }
-      next.gainDb += rnd(-1.5, 1.5);
+    };
+    if (large) {
+      const count = 1 + pick(2);
+      const done = new Set<number>();
+      while (done.size < count) {
+        const o = pick(CHANNELS);
+        if (done.has(o)) continue;
+        done.add(o);
+        const ch = next.channels[o]!;
+        const nBands = 2 + pick(3);
+        for (let k = 0; k < nBands; k++) {
+          const b = ch.bands[pick(BANDS_PER_CHANNEL)]!;
+          if (Math.random() < 0.25) {
+            b.gainDb = 0;
+          } else {
+            b.freqHz = fLo * Math.pow(fHi / fLo, Math.random());
+            b.q = Math.max(0.4, Math.min(20, b.q * Math.pow(2, rnd(-1, 1))));
+            b.gainDb = rnd(-12, 0);
+          }
+        }
+        ch.gainDb += rnd(-1.5, 1.5);
+        ch.delayMs += rnd(0, DELAY_RANGE_MS);
+        clampChannel(o);
+      }
     } else {
+      const o = pick(CHANNELS);
+      const ch = next.channels[o]!;
       const roll = Math.random();
-      if (roll < 0.55 && next.bands.length) {
-        const b = next.bands[Math.floor(Math.random() * next.bands.length)]!;
+      if (roll < 0.55) {
+        const b = ch.bands[pick(BANDS_PER_CHANNEL)]!;
         const k = Math.random();
-        if (k < 0.4) b.freqHz *= Math.pow(2, step(0.15));
+        if (k < 0.4) b.freqHz = Math.max(fLo, Math.min(fHi, b.freqHz * Math.pow(2, step(0.15))));
         else if (k < 0.7) b.q = Math.max(0.4, Math.min(20, b.q * Math.pow(2, step(0.5))));
         else b.gainDb += step(3);
       } else if (roll < 0.75) {
-        next.gainDb += step(1);
-      } else if (next.bands.length) {
-        const b = next.bands[Math.floor(Math.random() * next.bands.length)]!;
-        b.freqHz *= Math.pow(2, step(0.1));
-        b.q = Math.max(0.4, Math.min(20, b.q * Math.pow(2, step(0.3))));
-        b.gainDb += step(2);
+        ch.gainDb += step(1);
+      } else {
+        ch.delayMs += step(0.5);
       }
+      clampChannel(o);
     }
-    for (const b of next.bands) {
-      b.freqHz = Math.max(fLo, Math.min(fHi, b.freqHz));
-      b.gainDb = Math.max(-12, Math.min(0, b.gainDb));
-    }
-    next.gainDb = Math.max(-3, Math.min(0, next.gainDb));
-    if (validCandidate(next, fLo, fHi)) return next;
+    if (validCandidate(next, bases, fLo, fHi)) return next;
   }
-  return { bands: c.bands.map((b) => ({ ...b })), gainDb: c.gainDb };
+  return cloneCandidate(c);
 }
