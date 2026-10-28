@@ -127,6 +127,25 @@ canvas { display: block; }
 #loop-timeline td, #loop-timeline th { border: 1px solid var(--line); padding: 0.25rem 0.55rem; text-align: right; }
 #loop-timeline th { color: var(--muted); font-weight: 600; }
 #meters-cv { margin-top: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius); background: #101215; }
+.mixer-gains { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; margin-bottom: 0.4rem; }
+.mix-card { background: #101215; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.55rem 0.7rem; }
+.mix-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+.mix-head strong { font-size: 0.85rem; }
+.mix-head button { font-size: 0.7rem; padding: 0.2rem 0.5rem; color: var(--muted); }
+.mix-head button.muted { color: var(--bad); border-color: var(--bad); }
+.mix-ctl { display: flex; gap: 0.6rem; align-items: center; }
+.mix-ctl input[type="range"] { flex: 1; accent-color: var(--accent); }
+.mix-ctl span { white-space: nowrap; font-size: 0.8rem; color: var(--muted); }
+.mix-ctl input[type="number"] { width: 4.5rem; }
+#mixer-offline { border: 1px dashed var(--accent-dim); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; color: var(--accent); }
+#mixer-matrix { border-collapse: collapse; margin: 0.4rem 0 0.6rem; font-variant-numeric: tabular-nums; }
+#mixer-matrix th, #mixer-matrix td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: center; }
+#mixer-matrix th { color: var(--muted); font-size: 0.8rem; min-width: 3.2rem; }
+#mixer-matrix tr th:first-child { cursor: pointer; color: var(--text); }
+#mixer-matrix tr th:first-child:hover { color: var(--accent); }
+#mixer-matrix .cell { width: 3.4rem; height: 2.2rem; font-size: 1rem; line-height: 1; background: #101215; color: var(--muted); }
+#mixer-matrix .cell.on { background: var(--accent); border-color: var(--accent); color: #14161a; }
+#mixer-matrix .rowmask { color: var(--muted); font-size: 0.78rem; min-width: 2.5rem; }
 .verdict-ok { color: var(--ok); }
 .verdict-high { color: var(--bad); }
 .verdict-low { color: var(--accent); }

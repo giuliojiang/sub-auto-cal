@@ -68,6 +68,7 @@ async function refreshState() {
     st = await api("/api/state");
   } catch (e) {
     $("channels").innerHTML = "<pre>refresh failed: " + e.message + "</pre>";
+    if (window.mixerFailed) window.mixerFailed();
     if (window.peqFailed) window.peqFailed();
     return;
   }
@@ -81,6 +82,7 @@ async function refreshState() {
     });
   });
   $("channels").innerHTML = "<pre>" + rows.join("\n") + "</pre>";
+  if (window.refreshMixer) window.refreshMixer(st);
   if (window.refreshPeq) window.refreshPeq(st);
   const h = await api("/api/history");
   $("history").textContent = h.map((e) => `${e.time} [${e.target}] ${e.what}`).join("\n") || "(no writes yet)";

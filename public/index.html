@@ -54,6 +54,23 @@
   </div>
   <div class="tabpage" id="tab-dsp">
     <section>
+      <h2>Mixer <small>gains + 4x4 routing — edits stage locally, press Write to send</small></h2>
+      <div id="mixer-offline">No device state — connect the DSP or simulator, then press Refresh.</div>
+      <div id="mixer">
+        <h3>Input gains</h3>
+        <div id="mixer-ins" class="mixer-gains"></div>
+        <h3>Routing matrix <small>row = output, column = input, click a cell to toggle; click a row label to toggle the row</small></h3>
+        <div class="row">
+          <button id="mix-all">All on</button>
+          <button id="mix-none">All off</button>
+          <button id="mix-diag">Diagonal 1:1</button>
+        </div>
+        <table id="mixer-matrix"></table>
+        <h3>Output gains</h3>
+        <div id="mixer-outs" class="mixer-gains"></div>
+      </div>
+    </section>
+    <section>
       <h2>Device state <small id="version"></small></h2>
       <div class="row">
         <button id="btn-refresh">Refresh</button>
@@ -159,6 +176,7 @@
   </div>
 </main>
 <script src="app.js"></script>
+<script src="mixer.js"></script>
 <script src="peq.js"></script>
 <script src="loop.js"></script>
 </body>
