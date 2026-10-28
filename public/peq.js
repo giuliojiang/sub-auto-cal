@@ -6,7 +6,6 @@ const PEQ_BOT = -24;
 const PEQ_POINTS = 240;
 const PEQ_OUTS = ["Out1", "Out2", "Out3", "Out4"];
 let peqState = null;
-let peqDrag = null;
 const peqBypass = new Set();
 const peqKey = (o, b) => o + ":" + b;
 
@@ -89,7 +88,6 @@ function peqIsBypassed(o, b) {
 const peqX = (f, w) => (Math.log(f / PEQ_FMIN) / Math.log(PEQ_FMAX / PEQ_FMIN)) * w;
 const peqF = (x, w) => PEQ_FMIN * Math.pow(PEQ_FMAX / PEQ_FMIN, x / w);
 const peqY = (db, h) => ((PEQ_TOP - Math.max(PEQ_BOT, Math.min(PEQ_TOP, db))) / (PEQ_TOP - PEQ_BOT)) * h;
-const peqDb = (y, h) => PEQ_TOP - (y / h) * (PEQ_TOP - PEQ_BOT);
 
 function drawPeq(oi) {
   const cv = peqEl(oi, "peq-graph");
@@ -169,7 +167,7 @@ function drawPeq(oi) {
     const x = peqX(Math.max(PEQ_FMIN, Math.min(PEQ_FMAX, b.freqHz)), W);
     const y = peqY(b.gainDb, H);
     g.beginPath();
-    g.arc(x, y, peqDrag && peqDrag.oi === oi && peqDrag.i === i ? 8 : 6, 0, 2 * Math.PI);
+    g.arc(x, y, 6, 0, 2 * Math.PI);
     g.fillStyle = peqIsBypassed(oi, i) ? "#101215" : "#e8a33d";
     g.fill();
     g.strokeStyle = peqIsBypassed(oi, i) ? "#5c6672" : "#e8a33d";
@@ -304,39 +302,6 @@ window.peqFailed = function () {
 
 const PEQ_SLOPES = [["0", "Bypass"], ["1", "BW 6"], ["2", "Bessel 6"], ["3", "BW 12"], ["4", "Bessel 12"], ["5", "LR 12"], ["6", "BW 18"], ["7", "Bessel 18"], ["8", "BW 24"], ["9", "Bessel 24"], ["10", "LR 24"]];
 
-function peqNear(oi, x, y) {
-  const cv = peqEl(oi, "peq-graph");
-  const r = cv.getBoundingClientRect();
-  const px = x - r.left;
-  const py = y - r.top;
-  const sx = cv.width / r.width;
-  const sy = cv.height / r.height;
-  let best = -1;
-  let bestD = 14;
-  peqState.outputs[oi].bands.forEach((b, i) => {
-    const dx = (peqX(Math.max(PEQ_FMIN, Math.min(PEQ_FMAX, b.freqHz)), cv.width) - px * sx) / sx;
-    const dy = (peqY(b.gainDb, cv.height) - py * sy) / sy;
-    const d = Math.hypot(dx, dy);
-    if (d < bestD) {
-      bestD = d;
-      best = i;
-    }
-  });
-  return best;
-}
-
-function syncRow(oi, i) {
-  const b = peqState.outputs[oi].bands[i];
-  const r = peqRowInputs(oi, i);
-  r.freqHz.value = b.freqHz.toFixed(1);
-  r.q.value = b.q.toFixed(2);
-  r.gainDb.value = b.gainDb.toFixed(1);
-}
-
-function stageBand(oi, i) {
-  peqStage(oi, i, peqReadRow(oi, i));
-}
-
 window.addEventListener("DOMContentLoaded", () => {
   for (let oi = 0; oi < 4; oi++) {
     for (const kind of ["peq-hpf-slope", "peq-lpf-slope"]) {
@@ -356,45 +321,5 @@ window.addEventListener("DOMContentLoaded", () => {
       stage(`xo:${chan}:hpf`, `hpf ${chan}`, "/api/crossover", { chan, highPass: true, freqHz: hf || 20, slope: hf ? Number(peqEl(oi, "peq-hpf-slope").value) : 0 });
       stage(`xo:${chan}:lpf`, `lpf ${chan}`, "/api/crossover", { chan, highPass: false, freqHz: lf || 20000, slope: lf ? Number(peqEl(oi, "peq-lpf-slope").value) : 0 });
     };
-    const cv = peqEl(oi, "peq-graph");
-    cv.addEventListener("mousedown", (e) => {
-      if (!peqState) return;
-      peqDrag = { oi, i: peqNear(oi, e.clientX, e.clientY) };
-      drawPeq(oi);
-    });
-    cv.addEventListener("wheel", (e) => {
-      if (!peqState) return;
-      const i = peqNear(oi, e.clientX, e.clientY);
-      if (i < 0) return;
-      e.preventDefault();
-      const b = peqState.outputs[oi].bands[i];
-      b.q = Math.max(0.4, Math.min(128, b.q * Math.pow(1.1, -e.deltaY / 50)));
-      drawPeq(oi);
-      clearTimeout(cv._qt);
-      cv._qt = setTimeout(() => {
-        syncRow(oi, i);
-        stageBand(oi, i);
-      }, 400);
-    }, { passive: false });
   }
-  window.addEventListener("mousemove", (e) => {
-    if (!peqDrag || !peqState) return;
-    const { oi, i } = peqDrag;
-    const cv = peqEl(oi, "peq-graph");
-    const r = cv.getBoundingClientRect();
-    const f = peqF(((e.clientX - r.left) / r.width) * cv.width, cv.width);
-    const db = peqDb(((e.clientY - r.top) / r.height) * cv.height, cv.height);
-    const b = peqState.outputs[oi].bands[i];
-    b.freqHz = Math.max(20, Math.min(20000, f));
-    b.gainDb = Math.max(-12, Math.min(12, db));
-    drawPeq(oi);
-  });
-  window.addEventListener("mouseup", () => {
-    if (!peqDrag) return;
-    const { oi, i } = peqDrag;
-    peqDrag = null;
-    syncRow(oi, i);
-    stageBand(oi, i);
-    drawPeq(oi);
-  });
 });

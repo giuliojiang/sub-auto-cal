@@ -87,17 +87,20 @@ interface FakeCanvas {
   width: number;
   height: number;
   style: Record<string, string>;
-  addEventListener: () => void;
+  listeners: string[];
+  addEventListener: (t: string) => void;
   getBoundingClientRect: () => { left: number; top: number; width: number; height: number };
   getContext: () => unknown;
 }
 
 function makeCanvas(): FakeCanvas {
+  const listeners: string[] = [];
   return {
     width: 800,
     height: 260,
     style: {},
-    addEventListener: () => {},
+    listeners,
+    addEventListener: (t: string) => { listeners.push(t); },
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 260 }),
     getContext: () => makeCtx(),
   };
@@ -161,7 +164,8 @@ function loadPeq() {
   vm.runInContext(src, sandbox, { filename: "peq.js" });
   handlers["DOMContentLoaded"]!();
   const win = sandbox["window"] as Record<string, (...a: never[]) => unknown>;
-  return { win, bands, staged };
+  const windowHandlers = Object.keys(handlers);
+  return { win, bands, graphs, staged, windowHandlers };
 }
 
 function band(freqHz = 1000, q = 1, gainDb = 0, type = 0) {
@@ -268,6 +272,13 @@ describe("peq all-outputs display", () => {
     assert.equal(states[0]!.bypassed, true);
     assert.equal(states[0]!.pill, "BYPASSED");
     assert.equal(states[0]!.checked, true);
+  });
+
+  it("graphs are view-only with no edit listeners", () => {
+    const { win, graphs, windowHandlers } = loadPeq();
+    refresh(win, fixture());
+    for (const g of graphs) assert.deepEqual(g.listeners, []);
+    assert.deepEqual(windowHandlers, ["DOMContentLoaded"]);
   });
 
   it("clearPeqBypass drops every tracked bypass", () => {

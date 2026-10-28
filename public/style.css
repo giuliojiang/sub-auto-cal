@@ -109,7 +109,7 @@ pre {
 canvas { display: block; }
 #wave, #loop-graph, .peq-graph { width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: #101215; }
 #wave, #loop-graph { margin-top: 0.5rem; }
-.peq-graph { margin: 0.5rem 0; touch-action: none; cursor: crosshair; }
+.peq-graph { margin: 0.5rem 0; }
 .peq-out { border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 1rem; }
 .peq-out:first-child { border-top: none; padding-top: 0; margin-top: 0; }
 .peq-out h3 { font-size: 0.9rem; color: var(--text); margin: 0 0 0.3rem; }
