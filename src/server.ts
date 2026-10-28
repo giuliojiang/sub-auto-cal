@@ -231,9 +231,9 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
     try {
       if (loop?.running) throw new Error("loop already running; STOP it first");
       if (!device) throw new Error("connect the DSP or simulator first");
-      const fStart = Number(body?.fStart ?? 100);
-      const fLowcut = Number(body?.fLowcut ?? 200);
-      const fEnd = Number(body?.fEnd ?? 8000);
+      const fStart = Number(body?.fStart ?? 20);
+      const fLowcut = Number(body?.fLowcut ?? 40);
+      const fEnd = Number(body?.fEnd ?? 300);
       if (!(fStart >= 20 && fLowcut <= 20000 && fEnd <= 20000 && fStart < fLowcut && fLowcut < fEnd)) throw new Error("need 20 <= start < lowcut < end <= 20000");
       loop = new LoopRunner({
         fStart,
