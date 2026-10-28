@@ -134,21 +134,59 @@
     <section>
       <h2>PEQ + crossover designer</h2>
       <div class="row">
-        <div id="peq-tabs" role="tablist">
-          <button data-out="Out1" class="active">Out1</button><button data-out="Out2">Out2</button><button data-out="Out3">Out3</button><button data-out="Out4">Out4</button>
-        </div>
         <span id="peq-hint">edits stage locally and preview on the graph — press Write to send them to the device</span>
       </div>
       <div id="peq-notice">No device state — connect the DSP or simulator, then press Refresh.</div>
-      <canvas id="peq-graph" width="800" height="260"></canvas>
-      <div class="grid">
-        <label>HPF Hz <input id="peq-hpf" type="number" step="any"></label>
-        <label>HPF slope <select id="peq-hpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
-        <label>LPF Hz <input id="peq-lpf" type="number" step="any"></label>
-        <label>LPF slope <select id="peq-lpf-slope"><option value="0">Bypass</option><option value="1">BW 6</option><option value="2">Bessel 6</option><option value="3">BW 12</option><option value="4">Bessel 12</option><option value="5">LR 12</option><option value="6">BW 18</option><option value="7">Bessel 18</option><option value="8">BW 24</option><option value="9">Bessel 24</option><option value="10">LR 24</option></select></label>
-        <button id="btn-peq-xo">Set crossovers</button>
+      <div id="peq-all" style="display:none">
+        <div class="peq-out">
+          <h3>Out1</h3>
+          <canvas id="peq-graph-0" class="peq-graph" width="800" height="260"></canvas>
+          <div class="grid">
+            <label>HPF Hz <input id="peq-hpf-0" type="number" step="any"></label>
+            <label>HPF slope <select id="peq-hpf-slope-0"></select></label>
+            <label>LPF Hz <input id="peq-lpf-0" type="number" step="any"></label>
+            <label>LPF slope <select id="peq-lpf-slope-0"></select></label>
+            <button id="btn-peq-xo-0">Set crossovers</button>
+          </div>
+          <div id="peq-bands-0"></div>
+        </div>
+        <div class="peq-out">
+          <h3>Out2</h3>
+          <canvas id="peq-graph-1" class="peq-graph" width="800" height="260"></canvas>
+          <div class="grid">
+            <label>HPF Hz <input id="peq-hpf-1" type="number" step="any"></label>
+            <label>HPF slope <select id="peq-hpf-slope-1"></select></label>
+            <label>LPF Hz <input id="peq-lpf-1" type="number" step="any"></label>
+            <label>LPF slope <select id="peq-lpf-slope-1"></select></label>
+            <button id="btn-peq-xo-1">Set crossovers</button>
+          </div>
+          <div id="peq-bands-1"></div>
+        </div>
+        <div class="peq-out">
+          <h3>Out3</h3>
+          <canvas id="peq-graph-2" class="peq-graph" width="800" height="260"></canvas>
+          <div class="grid">
+            <label>HPF Hz <input id="peq-hpf-2" type="number" step="any"></label>
+            <label>HPF slope <select id="peq-hpf-slope-2"></select></label>
+            <label>LPF Hz <input id="peq-lpf-2" type="number" step="any"></label>
+            <label>LPF slope <select id="peq-lpf-slope-2"></select></label>
+            <button id="btn-peq-xo-2">Set crossovers</button>
+          </div>
+          <div id="peq-bands-2"></div>
+        </div>
+        <div class="peq-out">
+          <h3>Out4</h3>
+          <canvas id="peq-graph-3" class="peq-graph" width="800" height="260"></canvas>
+          <div class="grid">
+            <label>HPF Hz <input id="peq-hpf-3" type="number" step="any"></label>
+            <label>HPF slope <select id="peq-hpf-slope-3"></select></label>
+            <label>LPF Hz <input id="peq-lpf-3" type="number" step="any"></label>
+            <label>LPF slope <select id="peq-lpf-slope-3"></select></label>
+            <button id="btn-peq-xo-3">Set crossovers</button>
+          </div>
+          <div id="peq-bands-3"></div>
+        </div>
       </div>
-      <div id="peq-bands" style="display:none"></div>
     </section>
   </div>
   <div class="tabpage" id="tab-calibrate">

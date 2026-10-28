@@ -35,8 +35,8 @@ function makeClassList(): FakeClassList {
 interface FakeInput {
   value: string;
   checked: boolean;
-  onclick: ((e?: unknown) => void) | null;
-  onchange: ((e: { target: FakeInput }) => void) | null;
+  onclick: ((() => void) | null);
+  onchange: (((e: { target: FakeInput }) => void) | null);
 }
 
 interface FakeRow {
@@ -66,23 +66,41 @@ function makeRow(): { row: FakeRow; inputs: Record<string, FakeInput>; pill: { t
   return { row, inputs, pill };
 }
 
-interface FakeCanvas {
-  width: number;
-  height: number;
-  style: Record<string, string>;
-  addEventListener: () => void;
-  getContext: () => unknown;
-  [k: string]: unknown;
+function makeContainer() {
+  const children: FakeRow[] = [];
+  const c = {
+    children,
+    appendChild: (r: FakeRow) => { children.push(r); },
+    style: {} as Record<string, string>,
+  };
+  return {
+    ...c,
+    set innerHTML(_v: string) { children.length = 0; },
+  };
 }
 
 function makeCtx(): unknown {
   return new Proxy({}, { get: () => () => {}, set: () => true });
 }
 
-interface TabButton {
-  dataset: { out: string };
-  classList: FakeClassList;
-  onclick: (() => void) | null;
+interface FakeCanvas {
+  width: number;
+  height: number;
+  style: Record<string, string>;
+  addEventListener: () => void;
+  getBoundingClientRect: () => { left: number; top: number; width: number; height: number };
+  getContext: () => unknown;
+}
+
+function makeCanvas(): FakeCanvas {
+  return {
+    width: 800,
+    height: 260,
+    style: {},
+    addEventListener: () => {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 260 }),
+    getContext: () => makeCtx(),
+  };
 }
 
 interface StagedCall {
@@ -93,40 +111,26 @@ interface StagedCall {
 
 function loadPeq() {
   const src = readFileSync(join(root, "public", "peq.js"), "utf8");
-  const tabs: TabButton[] = ["Out1", "Out2", "Out3", "Out4"].map((out) => ({
-    dataset: { out },
-    classList: makeClassList(),
-    onclick: null,
-  }));
-  tabs[0]!.classList.add("active");
-  const bandsEl = {
-    children: [] as FakeRow[],
-    appendChild: (r: FakeRow) => { bandsEl.children.push(r); },
-    style: {} as Record<string, string>,
-  };
-  Object.defineProperty(bandsEl, "innerHTML", { set: () => { bandsEl.children.length = 0; } });
-  const canvas: FakeCanvas = {
-    width: 800,
-    height: 260,
-    style: {},
-    addEventListener: () => {},
-    getContext: () => makeCtx(),
-  };
+  const bands = [makeContainer(), makeContainer(), makeContainer(), makeContainer()];
+  const graphs = [makeCanvas(), makeCanvas(), makeCanvas(), makeCanvas()];
   const byId: Record<string, unknown> = {
-    "peq-bands": bandsEl,
-    "peq-graph": canvas,
-    "peq-hpf": { value: "" },
-    "peq-hpf-slope": { value: "0" },
-    "peq-lpf": { value: "" },
-    "peq-lpf-slope": { value: "0" },
-    "peq-notice": { style: {} as Record<string, string>, textContent: "" },
-    "btn-peq-xo": { onclick: null as ((() => void) | null) },
+    "peq-all": { style: { display: "none" } as Record<string, string> },
+    "peq-notice": { style: { display: "" } as Record<string, string>, textContent: "" },
   };
-  const handlers: Record<string, () => void> = {};
+  for (let oi = 0; oi < 4; oi++) {
+    byId[`peq-bands-${oi}`] = bands[oi];
+    byId[`peq-graph-${oi}`] = graphs[oi];
+    byId[`peq-hpf-${oi}`] = { value: "" };
+    byId[`peq-hpf-slope-${oi}`] = { value: "0", appendChild: (_o: unknown) => {} };
+    byId[`peq-lpf-${oi}`] = { value: "" };
+    byId[`peq-lpf-slope-${oi}`] = { value: "0", appendChild: (_o: unknown) => {} };
+    byId[`btn-peq-xo-${oi}`] = { onclick: null as ((() => void) | null) };
+  }
+  const handlers: Record<string, (...a: never[]) => void> = {};
   const staged: StagedCall[] = [];
   const sandbox: Record<string, unknown> = {
     window: {
-      addEventListener: (t: string, fn: () => void) => { handlers[t] = fn; },
+      addEventListener: (t: string, fn: (...a: never[]) => void) => { handlers[t] = fn; },
     },
     document: {
       getElementById: (id: string) => {
@@ -134,7 +138,8 @@ function loadPeq() {
         if (!el) throw new Error("unexpected id " + id);
         return el;
       },
-      createElement: () => {
+      createElement: (tag: string): unknown => {
+        if (tag === "option") return { value: "", textContent: "" };
         const made = makeRow();
         return {
           className: made.row.className,
@@ -144,16 +149,6 @@ function loadPeq() {
           set innerHTML(_v: string) {},
           appendChild: (_c: unknown) => {},
         };
-      },
-      querySelector: (sel: string) => {
-        if (sel === "#peq-tabs button.active") return tabs.find((t) => t.classList.contains("active"));
-        const m = sel.match(/data-out="([^"]+)"/);
-        if (m) return tabs.find((t) => t.dataset.out === m[1]);
-        throw new Error("unexpected selector " + sel);
-      },
-      querySelectorAll: (sel: string) => {
-        if (sel === "#peq-tabs button") return tabs;
-        throw new Error("unexpected selectorAll " + sel);
       },
     },
     stage: (key: string, _label: string, path: string, body: Record<string, unknown>) => {
@@ -166,102 +161,129 @@ function loadPeq() {
   vm.runInContext(src, sandbox, { filename: "peq.js" });
   handlers["DOMContentLoaded"]!();
   const win = sandbox["window"] as Record<string, (...a: never[]) => unknown>;
-  return { win, tabs, bandsEl, staged };
+  return { win, bands, staged };
 }
 
-function band() {
-  return { freqHz: 1000, q: 1, gainDb: 0, type: 0 };
+function band(freqHz = 1000, q = 1, gainDb = 0, type = 0) {
+  return { freqHz, q, gainDb, type };
 }
 
-function output(name: string) {
+function output(name: string, bands: ReturnType<typeof band>[]) {
   return {
     name, gainDb: 0, polarity: false, routingMask: 15, delayMs: 0,
     hpfHz: null, hpfSlope: 0, lpfHz: null, lpfSlope: 0,
-    bands: Array.from({ length: 7 }, band),
-    comp: { ratioIndex: 0, kneeDb: 0, attackMs: 0, releaseMs: 0, thresholdDb: 0 },
+    bands,
+    comp: { ratioIndex: 0, kneeDb: 0, attackMs: 0, releaseMs: 500, thresholdDb: 20 },
   };
 }
 
 function fixture() {
-  return { inputs: [], outputs: ["Out1", "Out2", "Out3", "Out4"].map(output) };
+  const seven = () => Array.from({ length: 7 }, () => band());
+  return {
+    inputs: [],
+    outputs: [
+      output("Out1", seven()),
+      output("Out2", [band(100, 1, 3.5, 1), ...Array.from({ length: 6 }, () => band())]),
+      output("Out3", seven()),
+      output("Out4", [...Array.from({ length: 6 }, () => band()), band(5000, 2, -2.5, 0)]),
+    ],
+  };
 }
 
-function rowStates(bandsEl: { children: FakeRow[] }) {
-  return bandsEl.children.map((r) => ({
+function rowStates(children: FakeRow[]) {
+  return children.map((r) => ({
     bypassed: r.classList.contains("bypassed"),
     pill: (r.querySelector(".peq-pill") as { textContent: string }).textContent,
     checked: (r.querySelector('[data-k="bypass"]') as FakeInput).checked,
   }));
 }
 
-function clickTab(tabs: TabButton[], out: string) {
-  for (const t of tabs) t.classList.remove("active");
-  const b = tabs.find((t) => t.dataset.out === out)!;
-  b.classList.add("active");
-  b.onclick!();
+function refresh(win: Record<string, (...a: never[]) => unknown>, st: unknown) {
+  (win["refreshPeq"] as (s: unknown) => void)(st);
 }
 
-describe("peq bypass display", () => {
-  it("tab switches never gray rows the device reports as active", () => {
-    const { win, tabs, bandsEl } = loadPeq();
-    (win["refreshPeq"] as (st: unknown) => void)(fixture());
-    for (const out of ["Out2", "Out3", "Out4", "Out1", "Out2", "Out3"]) {
-      clickTab(tabs, out);
-      const states = rowStates(bandsEl);
-      assert.equal(states.length, 7);
-      for (const s of states) {
+describe("peq all-outputs display", () => {
+  it("renders all four outputs with their own values and nothing grayed", () => {
+    const { win, bands } = loadPeq();
+    refresh(win, fixture());
+    for (const [oi, rows] of bands.map((b) => b.children).entries()) {
+      assert.equal(rows.length, 7);
+      for (const s of rowStates(rows)) {
         assert.equal(s.bypassed, false);
         assert.equal(s.pill, "ACTIVE");
         assert.equal(s.checked, false);
       }
+      void oi;
+    }
+    const out2band0 = bands[1]!.children[0]!;
+    assert.equal((out2band0.querySelector('[data-k="gainDb"]') as FakeInput).value, "3.5");
+    assert.equal((out2band0.querySelector('[data-k="freqHz"]') as FakeInput).value, "100.0");
+    assert.equal((out2band0.querySelector('[data-k="type"]') as FakeInput).value, "1");
+    const out4band6 = bands[3]!.children[6]!;
+    assert.equal((out4band6.querySelector('[data-k="gainDb"]') as FakeInput).value, "-2.5");
+    assert.equal((out4band6.querySelector('[data-k="freqHz"]') as FakeInput).value, "5000.0");
+    const out1band0 = bands[0]!.children[0]!;
+    assert.equal((out1band0.querySelector('[data-k="gainDb"]') as FakeInput).value, "0.0");
+  });
+
+  it("repeated refreshes never gray rows the device reports as active", () => {
+    const { win, bands } = loadPeq();
+    refresh(win, fixture());
+    refresh(win, fixture());
+    refresh(win, fixture());
+    for (const rows of bands.map((b) => b.children)) {
+      for (const s of rowStates(rows)) {
+        assert.equal(s.bypassed, false);
+        assert.equal(s.pill, "ACTIVE");
+      }
     }
   });
 
-  it("checking bypass grays exactly that row and survives tab switches", () => {
-    const { win, tabs, bandsEl, staged } = loadPeq();
-    (win["refreshPeq"] as (st: unknown) => void)(fixture());
-    clickTab(tabs, "Out3");
-    const box = bandsEl.children[0]!.querySelector('[data-k="bypass"]') as FakeInput;
+  it("checking bypass grays exactly that row", () => {
+    const { win, bands, staged } = loadPeq();
+    refresh(win, fixture());
+    const box = bands[2]!.children[1]!.querySelector('[data-k="bypass"]') as FakeInput;
     box.checked = true;
     box.onchange!({ target: box });
     assert.equal(staged.at(-1)!.body["bypass"], true);
-    let states = rowStates(bandsEl);
-    assert.equal(states[0]!.bypassed, true);
-    assert.equal(states[0]!.pill, "BYPASSED");
-    for (const s of states.slice(1)) assert.equal(s.bypassed, false);
-    clickTab(tabs, "Out1");
-    clickTab(tabs, "Out3");
-    states = rowStates(bandsEl);
+    assert.equal(staged.at(-1)!.body["chan"], "Out3");
+    assert.equal(staged.at(-1)!.body["band"], 1);
+    bands.forEach((b, oi) => {
+      rowStates(b.children).forEach((s, i) => {
+        const want = oi === 2 && i === 1;
+        assert.equal(s.bypassed, want);
+        assert.equal(s.pill, want ? "BYPASSED" : "ACTIVE");
+      });
+    });
+  });
+
+  it("locally set bypass survives a device refresh the device cannot report", () => {
+    const { win, bands } = loadPeq();
+    refresh(win, fixture());
+    const box = bands[0]!.children[0]!.querySelector('[data-k="bypass"]') as FakeInput;
+    box.checked = true;
+    box.onchange!({ target: box });
+    refresh(win, fixture());
+    const states = rowStates(bands[0]!.children);
     assert.equal(states[0]!.bypassed, true);
     assert.equal(states[0]!.pill, "BYPASSED");
     assert.equal(states[0]!.checked, true);
   });
 
-  it("locally set bypass survives a device refresh the device cannot report", () => {
-    const { win, tabs, bandsEl } = loadPeq();
-    (win["refreshPeq"] as (st: unknown) => void)(fixture());
-    clickTab(tabs, "Out2");
-    const box = bandsEl.children[2]!.querySelector('[data-k="bypass"]') as FakeInput;
-    box.checked = true;
-    box.onchange!({ target: box });
-    (win["refreshPeq"] as (st: unknown) => void)(fixture());
-    clickTab(tabs, "Out2");
-    const states = rowStates(bandsEl);
-    assert.equal(states[2]!.bypassed, true);
-    assert.equal(states[2]!.pill, "BYPASSED");
-  });
-
   it("clearPeqBypass drops every tracked bypass", () => {
-    const { win, tabs, bandsEl } = loadPeq();
-    (win["refreshPeq"] as (st: unknown) => void)(fixture());
-    const box = bandsEl.children[1]!.querySelector('[data-k="bypass"]') as FakeInput;
-    box.checked = true;
-    box.onchange!({ target: box });
-    (win["clearPeqBypass"] as () => void)();
-    for (const s of rowStates(bandsEl)) {
-      assert.equal(s.bypassed, false);
-      assert.equal(s.pill, "ACTIVE");
+    const { win, bands } = loadPeq();
+    refresh(win, fixture());
+    for (const oi of [0, 3]) {
+      const box = bands[oi]!.children[oi + 1]!.querySelector('[data-k="bypass"]') as FakeInput;
+      box.checked = true;
+      box.onchange!({ target: box });
     }
-    void tabs;
+    (win["clearPeqBypass"] as () => void)();
+    for (const rows of bands.map((b) => b.children)) {
+      for (const s of rowStates(rows)) {
+        assert.equal(s.bypassed, false);
+        assert.equal(s.pill, "ACTIVE");
+      }
+    }
   });
 });

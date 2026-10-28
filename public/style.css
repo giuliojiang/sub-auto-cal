@@ -107,9 +107,12 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 canvas { display: block; }
-#wave, #loop-graph, #peq-graph { width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: #101215; }
+#wave, #loop-graph, .peq-graph { width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: #101215; }
 #wave, #loop-graph { margin-top: 0.5rem; }
-#peq-graph { margin: 0.5rem 0; touch-action: none; cursor: crosshair; }
+.peq-graph { margin: 0.5rem 0; touch-action: none; cursor: crosshair; }
+.peq-out { border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 1rem; }
+.peq-out:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+.peq-out h3 { font-size: 0.9rem; color: var(--text); margin: 0 0 0.3rem; }
 #peq-hint, #mic-status, #loop-status, #meters { font-size: 0.82rem; color: var(--muted); }
 #peq-notice { border: 1px dashed var(--accent-dim); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; color: var(--accent); }
 #loop-status { font-variant-numeric: tabular-nums; }
@@ -118,8 +121,6 @@ canvas { display: block; }
   padding: 0.4rem 0.2rem; border-top: 1px solid var(--line);
 }
 .peq-row strong { min-width: 1rem; color: var(--accent); }
-#peq-tabs { display: flex; gap: 0.25rem; }
-#peq-tabs button.active { background: var(--accent); border-color: var(--accent); color: #14161a; font-weight: 600; }
 .peq-row.bypassed { opacity: 0.55; }
 .peq-pill { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 20px; border: 1px solid var(--ok); color: var(--ok); white-space: nowrap; }
 .peq-row.bypassed .peq-pill { border-color: var(--muted); color: var(--muted); }
