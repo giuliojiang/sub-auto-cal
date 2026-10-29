@@ -89,19 +89,21 @@ export function candidateMismatches(st: DeviceState, c: Candidate, types: number
 }
 
 export async function applyCandidate(dev: DspDevice, c: Candidate, types: number[][], opts: ApplyOpts = {}): Promise<void> {
-  const tries = Math.max(1, opts.tries ?? 3);
-  let last: string[] = [];
-  for (let a = 0; a < tries; a++) {
-    await pushCandidate(dev, c, types);
-    last = candidateMismatches(await dev.refresh(), c, types);
-    if (!last.length) break;
-    if (opts.isStopped?.()) throw new Error("stopped while verifying dsp settings");
-  }
-  if (last.length) {
-    const shown = last.slice(0, 4).join("; ");
-    throw new Error(`dsp did not take settings: ${shown}${last.length > 4 ? ` (+${last.length - 4} more)` : ""}`);
-  }
-  await new Promise((res) => setTimeout(res, Math.max(0, opts.settleMs ?? 400)));
+  return dev.exclusive(async () => {
+    const tries = Math.max(1, opts.tries ?? 3);
+    let last: string[] = [];
+    for (let a = 0; a < tries; a++) {
+      await pushCandidate(dev, c, types);
+      last = candidateMismatches(await dev.refresh(), c, types);
+      if (!last.length) break;
+      if (opts.isStopped?.()) throw new Error("stopped while verifying dsp settings");
+    }
+    if (last.length) {
+      const shown = last.slice(0, 4).join("; ");
+      throw new Error(`dsp did not take settings: ${shown}${last.length > 4 ? ` (+${last.length - 4} more)` : ""}`);
+    }
+    await new Promise((res) => setTimeout(res, Math.max(0, opts.settleMs ?? 400)));
+  });
 }
 
 export interface TimelineEntry {

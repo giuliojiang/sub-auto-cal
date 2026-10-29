@@ -95,7 +95,7 @@ function diffVsPrev(curr, prev) {
 
 function renderLoop(state) {
   lastLoopState = state;
-  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length}` : state.timeline.length ? "done" : "idle";
+  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length} — STOP to apply a row` : state.timeline.length ? "done" : "idle";
   drawLoop(state);
   const chanShort = (ch, o) => {
     const f = ch.bands.filter((b) => b.gainDb < -0.05).map((b) => `${b.freqHz.toFixed(0)}/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}`).join(" ") || "—";
@@ -104,7 +104,7 @@ function renderLoop(state) {
   const rows = state.timeline.map((t, i) => {
     const f = t.candidate.channels.map(chanShort).join(" ");
     const delta = diffVsPrev(t, i ? state.timeline[i - 1] : null);
-    return `<tr data-iter="${t.iter}"${t.iter === hoverIter ? ' class="lit"' : ""}><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${delta}</td><td>${f}</td><td><button data-apply="${t.iter}">Apply</button></td></tr>`;
+    return `<tr data-iter="${t.iter}"${t.iter === hoverIter ? ' class="lit"' : ""}><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${delta}</td><td>${f}</td><td><button data-apply="${t.iter}"${state.running ? ' disabled title="STOP the loop first"' : ""}>Apply</button></td></tr>`;
   });
   $("loop-timeline").innerHTML = rows.length
     ? `<table><tr><th>iter</th><th>kind</th><th></th><th title="Flatness error in dB: RMS deviation of the measured shape from the target (flat lowcut to end, minus 12 dB per octave below lowcut). Lower is flatter; overall level changes do not affect it.">F</th><th title="Mean SPL in dB across the goal range, start to end.">mean</th><th title="Level lost versus the baseline measurement in dB: baseline mean minus candidate mean. Negative means the candidate got louder.">loss</th><th title="Score the optimizer minimizes: J equals F plus loss. One dB of flatness trades one-for-one with one dB of level.">J</th><th title="Incremental change versus the previous row: score delta, then each changed filter, gain, or delay. Row 0 is the starting point before any changes are applied.">Δ vs prev</th><th>filters</th><th></th></tr>${rows.join("")}</table>`

@@ -59,6 +59,36 @@ describe("verify-before-sweep", () => {
     assert.deepEqual(candidateMismatches(st, next, types), []);
   });
 
+  it("exclusive blocks run in order without overlapping", async () => {
+    const dev = new DspDevice(new DspSimulator());
+    await dev.connect();
+    const order: string[] = [];
+    const slow = dev.exclusive(async () => {
+      order.push("slow-start");
+      await new Promise((res) => setTimeout(res, 30));
+      order.push("slow-end");
+    });
+    const fast = dev.exclusive(async () => {
+      order.push("fast");
+    });
+    await Promise.all([slow, fast]);
+    assert.deepEqual(order, ["slow-start", "slow-end", "fast"]);
+  });
+
+  it("concurrent applies resolve cleanly with last writer verified", async () => {
+    const { dev, candidate, types } = await simDevice();
+    const first = cloneCandidate(candidate);
+    first.channels[0]!.gainDb = -6;
+    const second = cloneCandidate(candidate);
+    second.channels[0]!.gainDb = -3;
+    await Promise.all([
+      applyCandidate(dev, first, types, { settleMs: 10 }),
+      applyCandidate(dev, second, types, { settleMs: 10 }),
+    ]);
+    const st = await dev.refresh();
+    assert.deepEqual(candidateMismatches(st, second, types), []);
+  });
+
   it("applyCandidate fails loudly when writes do not stick", async () => {
     const dev = new DspDevice(new FrozenLink());
     await dev.connect();

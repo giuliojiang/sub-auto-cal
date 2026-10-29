@@ -35,7 +35,17 @@ export class DspDevice {
   private snapshot: DeviceState | null = null;
   private muted = new Array(8).fill(false) as boolean[];
   private bypass: boolean[][] = Array.from({ length: 4 }, () => new Array(7).fill(false));
+  private queue: Promise<void> = Promise.resolve();
   private link: DspLink;
+
+  exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn, fn);
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
 
   constructor(link: DspLink) {
     this.link = link;

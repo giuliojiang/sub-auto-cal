@@ -60,16 +60,21 @@ function chan() {
   return $("ctl-chan").value;
 }
 
+let refreshSeq = 0;
+
 async function refreshState() {
+  const my = ++refreshSeq;
   let st;
   try {
     st = await api("/api/state");
   } catch (e) {
+    if (my !== refreshSeq) return;
     $("channels").innerHTML = "<pre>refresh failed: " + e.message + "</pre>";
     if (window.mixerFailed) window.mixerFailed();
     if (window.peqFailed) window.peqFailed();
     return;
   }
+  if (my !== refreshSeq) return;
   $("version").textContent = st.version || "";
   const rows = [];
   st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name}${st.muted[i] ? " MUTED" : ""} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} gate=${c.gate.attackMs}/${c.gate.releaseMs}/${c.gate.holdMs}ms thr=${c.gate.thresholdDb.toFixed(1)}dB`));

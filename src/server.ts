@@ -262,6 +262,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   "POST /api/loop/apply": async (_req, res, body) => {
     try {
       if (!loop) throw new Error("no loop yet; GO first");
+      if (loop.running) throw new Error("STOP the loop first; it overwrites applied settings");
       const iter = Number(body?.iter);
       if (!Number.isInteger(iter) || iter < 0) throw new Error("iter must be a non-negative integer");
       await loop.applyIter(iter);
