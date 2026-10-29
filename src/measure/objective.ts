@@ -1,4 +1,5 @@
-export const LAMBDA = 1;
+export const FLATNESS_WEIGHT = 2;
+export const SPL_WEIGHT = 1;
 export const IMPROVE_DB = 0.1;
 
 export interface Scored {
@@ -37,7 +38,7 @@ export function scoreResponse(grid: Float32Array, db: Float32Array, fStart: numb
   }
   const flatness = n ? Math.sqrt(sq / n) : 0;
   const loss = baseMean - mean;
-  return { mean, flatness, loss, cost: flatness + LAMBDA * loss };
+  return { mean, flatness, loss, cost: FLATNESS_WEIGHT * flatness + SPL_WEIGHT * loss };
 }
 
 export function markPareto(costs: { flatness: number; mean: number }[]): boolean[] {

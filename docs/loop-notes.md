@@ -10,7 +10,7 @@ are wired, with 1/30-octave snapping at that point).
 What this implements from the brief: ESS sweep with fades, inverse
 filter with numerical normalization, linear (zero-padded FFT)
 deconvolution, IR windowing, FFT to FR, 1/12-octave power smoothing as
-the score input, J = F + S_loss with λ = 1 where F is the RMS
+the score input, J = 2·F + S_loss where F is the RMS
 deviation from a shaped target (flat from lowcut to end, falling
 12 dB per octave from lowcut down to start, so weak low end reads
 as on-target instead of forcing cuts elsewhere), greedy

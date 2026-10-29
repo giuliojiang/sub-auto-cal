@@ -138,6 +138,19 @@ describe("objective", () => {
     assert.ok(Math.abs(s1.loss - s0.loss - 2) < 1e-5);
   });
 
+  it("weighs flatness twice as heavily as spl", () => {
+    const g = logGrid(100, 8000, 100);
+    const mk = (shift: number) => Float32Array.from(g, (_, i) => -20 + (i % 2 ? 2 : -2) + shift);
+    const s0 = scoreResponse(g, mk(0), 100, 100, 8000, -20);
+    assert.ok(Math.abs(s0.flatness - 2) < 1e-4, `F=${s0.flatness}`);
+    assert.ok(Math.abs(s0.loss) < 1e-4, `loss=${s0.loss}`);
+    assert.ok(Math.abs(s0.cost - 4) < 1e-3, `J=${s0.cost}`);
+    const s1 = scoreResponse(g, mk(-1), 100, 100, 8000, -20);
+    assert.ok(Math.abs(s1.flatness - 2) < 1e-4, `F=${s1.flatness}`);
+    assert.ok(Math.abs(s1.loss - 1) < 1e-4, `loss=${s1.loss}`);
+    assert.ok(Math.abs(s1.cost - 5) < 1e-3, `J=${s1.cost}`);
+  });
+
   it("reproduces the brief worked examples", () => {
     assert.equal(1.8 + 2.0, 3.8);
     assert.equal(1.2 + 4.5, 5.7);
