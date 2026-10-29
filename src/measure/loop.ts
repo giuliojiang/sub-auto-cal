@@ -24,6 +24,17 @@ import {
 } from "./objective.ts";
 import { applyCal, type MicCal, type CalProvenance } from "./miccal.ts";
 import type { DspDevice } from "../dsp/device.ts";
+import {
+  gainDbToRaw,
+  gainRawToDb,
+  msToDelaySamples,
+  delaySamplesToMs,
+  hzToFreqIndex,
+  freqIndexToHz,
+  qToRaw,
+  rawToQ,
+  type DeviceState,
+} from "../dsp/protocol.ts";
 
 export interface LoopConfig {
   fStart: number;
@@ -33,8 +44,64 @@ export interface LoopConfig {
   maxIter: number;
   playbackId?: string;
   captureId?: string;
+  settleMs?: number;
   getCal?: () => { cal: MicCal; prov: CalProvenance } | null;
   getDevice?: () => DspDevice | null;
+}
+
+export interface ApplyOpts {
+  tries?: number;
+  settleMs?: number;
+  isStopped?: () => boolean;
+}
+
+export async function pushCandidate(dev: DspDevice, c: Candidate, types: number[][]): Promise<void> {
+  for (let o = 0; o < 4; o++) {
+    const ch = c.channels[o]!;
+    const chan = 4 + o;
+    await dev.setGain(chan, ch.gainDb);
+    await dev.setDelay(chan, ch.delayMs);
+    for (let b = 0; b < 7; b++) {
+      const band = ch.bands[b]!;
+      await dev.setPeq(chan, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: types[o]![b] ?? 0, bypass: false });
+    }
+  }
+}
+
+// The hardware stores snapped raw values, so expectations are snapped with the
+// same forward/back scales the readback uses; anything else is a missed write.
+export function candidateMismatches(st: DeviceState, c: Candidate, types: number[][]): string[] {
+  const out: string[] = [];
+  for (let o = 0; o < 4; o++) {
+    const ch = c.channels[o]!;
+    const rd = st.outputs[o]!;
+    if (Math.abs(rd.gainDb - gainRawToDb(gainDbToRaw(ch.gainDb))) > 1e-9) out.push(`Out${o + 1} gain`);
+    if (Math.abs(rd.delayMs - delaySamplesToMs(msToDelaySamples(ch.delayMs))) > 1e-9) out.push(`Out${o + 1} delay`);
+    ch.bands.forEach((b, bi) => {
+      const rb = rd.bands[bi]!;
+      if (Math.abs(rb.gainDb - gainRawToDb(gainDbToRaw(b.gainDb))) > 1e-9) out.push(`Out${o + 1}b${bi} gain`);
+      if (Math.abs(rb.freqHz - freqIndexToHz(hzToFreqIndex(b.freqHz))) > 1e-6) out.push(`Out${o + 1}b${bi} freq`);
+      if (Math.abs(rb.q - rawToQ(qToRaw(b.q))) > 1e-9) out.push(`Out${o + 1}b${bi} q`);
+      if (rb.type !== (types[o]![bi] ?? 0)) out.push(`Out${o + 1}b${bi} type`);
+    });
+  }
+  return out;
+}
+
+export async function applyCandidate(dev: DspDevice, c: Candidate, types: number[][], opts: ApplyOpts = {}): Promise<void> {
+  const tries = Math.max(1, opts.tries ?? 3);
+  let last: string[] = [];
+  for (let a = 0; a < tries; a++) {
+    await pushCandidate(dev, c, types);
+    last = candidateMismatches(await dev.refresh(), c, types);
+    if (!last.length) break;
+    if (opts.isStopped?.()) throw new Error("stopped while verifying dsp settings");
+  }
+  if (last.length) {
+    const shown = last.slice(0, 4).join("; ");
+    throw new Error(`dsp did not take settings: ${shown}${last.length > 4 ? ` (+${last.length - 4} more)` : ""}`);
+  }
+  await new Promise((res) => setTimeout(res, Math.max(0, opts.settleMs ?? 400)));
 }
 
 export interface TimelineEntry {
@@ -54,17 +121,25 @@ export interface LoopSnapshot {
   timeline: TimelineEntry[];
   bestIter: number;
   cal: CalProvenance | null;
+  error: string | null;
 }
 
 export class LoopRunner {
   running = false;
   timeline: TimelineEntry[] = [];
   baseline: Scored | null = null;
+  error: string | null = null;
   private stopAsked = false;
   config: LoopConfig;
+  private settleMs: number;
 
   constructor(config: LoopConfig) {
     this.config = config;
+    this.settleMs = Math.max(0, config.settleMs ?? 400);
+  }
+
+  private applyOpts(): ApplyOpts {
+    return { settleMs: this.settleMs, isStopped: () => this.stopAsked };
   }
 
   snapshot(): LoopSnapshot {
@@ -86,6 +161,7 @@ export class LoopRunner {
       baseline: this.baseline,
       bestIter,
       cal: this.timeline.length ? (this.timeline[this.timeline.length - 1]!.cal ?? null) : null,
+      error: this.error,
       timeline: this.timeline.map((t, i) => ({ ...t, pareto: flags[i] ?? false })),
     };
   }
@@ -99,27 +175,14 @@ export class LoopRunner {
     if (!dev) throw new Error("connect the DSP or simulator first");
     const entry = this.timeline.find((t) => t.iter === iter);
     if (!entry) throw new Error(`unknown iteration ${iter}`);
-    await this.pushCandidate(dev, cloneCandidate(entry.candidate));
+    await applyCandidate(dev, cloneCandidate(entry.candidate), this.types, this.applyOpts());
   }
 
   private types: number[][] = [];
   private bases: ChannelBase[] = [];
 
-  private async pushCandidate(dev: DspDevice, c: Candidate): Promise<void> {
-    for (let o = 0; o < 4; o++) {
-      const ch = c.channels[o]!;
-      const chan = 4 + o;
-      await dev.setGain(chan, ch.gainDb);
-      await dev.setDelay(chan, ch.delayMs);
-      for (let b = 0; b < 7; b++) {
-        const band = ch.bands[b]!;
-        await dev.setPeq(chan, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: this.types[o]![b] ?? 0, bypass: false });
-      }
-    }
-  }
-
   private async measure(dev: DspDevice, c: Candidate | null): Promise<{ scored: Scored; prov: CalProvenance | null; response: TimelineEntry["response"] }> {
-    if (c) await this.pushCandidate(dev, c);
+    if (c) await applyCandidate(dev, c, this.types, this.applyOpts());
     const { fStart, fLowcut, fEnd, sweepSecs, playbackId, captureId } = this.config;
     const sweep = genESS(fStart / 2, Math.min(20000, fEnd * 2), sweepSecs);
     const dir = mkdtempSync(join(tmpdir(), "subloop-"));
@@ -152,6 +215,7 @@ export class LoopRunner {
     if (this.running) return;
     this.running = true;
     this.stopAsked = false;
+    this.error = null;
     try {
       const dev = this.config.getDevice?.() ?? null;
       if (!dev) throw new Error("connect the DSP or simulator first");
@@ -175,6 +239,8 @@ export class LoopRunner {
         }
         this.timeline.push({ iter, kind: large ? "mutation" : "tweak", candidate: cloneCandidate(current), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
       }
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
     } finally {
       this.running = false;
     }

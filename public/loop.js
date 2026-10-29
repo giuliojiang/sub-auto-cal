@@ -95,7 +95,7 @@ function diffVsPrev(curr, prev) {
 
 function renderLoop(state) {
   lastLoopState = state;
-  $("loop-status").textContent = state.running ? `running, iter ${state.timeline.length}` : state.timeline.length ? "done" : "idle";
+  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length}` : state.timeline.length ? "done" : "idle";
   drawLoop(state);
   const chanShort = (ch, o) => {
     const f = ch.bands.filter((b) => b.gainDb < -0.05).map((b) => `${b.freqHz.toFixed(0)}/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}`).join(" ") || "—";
