@@ -344,7 +344,7 @@ export interface ChannelState {
   hpfSlope: number;
   lpfHz: number | null;
   lpfSlope: number;
-  bands: { freqHz: number; q: number; gainDb: number; type: number }[];
+  bands: { freqHz: number; q: number; gainDb: number; type: number; bypass?: boolean }[];
   comp: CompState;
 }
 
@@ -353,6 +353,7 @@ export interface DeviceState {
   inputs: InputState[];
   outputs: ChannelState[];
   meters: number[];
+  muted: boolean[];
 }
 
 function decodeStr(b: Uint8Array, off: number, len: number): string {

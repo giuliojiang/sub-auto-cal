@@ -11,37 +11,35 @@ function post(path, data) {
   return api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data || {}) });
 }
 
-const pending = new Map();
+let liveChain = Promise.resolve();
 
-function renderPending() {
-  const b = $("btn-write");
-  b.textContent = `Write (${pending.size})`;
-  b.disabled = pending.size === 0;
-  b.title = pending.size ? [...pending.values()].map((e) => e.label).join("\n") : "no staged edits";
+function liveOk() {
+  const el = $("live");
+  el.textContent = "live";
+  el.classList.remove("bad");
 }
 
-function stage(key, label, path, body) {
-  pending.set(key, { label, path, body });
-  renderPending();
+function liveErr(e) {
+  const el = $("live");
+  el.textContent = `failed: ${e.message}`;
+  el.classList.add("bad");
 }
 
-function clearPending() {
-  pending.clear();
-  renderPending();
-}
-
-$("btn-write").onclick = async () => {
-  const items = [...pending.entries()];
-  for (const [key, e] of items) {
-    await post(e.path, e.body);
-    pending.delete(key);
-    renderPending();
-    await new Promise((r) => setTimeout(r, 120));
+async function liveApply(path, body) {
+  try {
+    await live(path, body);
+    await refreshState();
+    liveOk();
+  } catch (e) {
+    liveErr(e);
   }
-  await refreshState();
-};
-$("btn-discard").onclick = () => clearPending();
-renderPending();
+}
+
+function live(path, body) {
+  const run = liveChain.then(() => post(path, body));
+  liveChain = run.catch(() => undefined);
+  return run;
+}
 
 async function refreshStatus() {
   const s = await api("/api/status");
@@ -74,11 +72,11 @@ async function refreshState() {
   }
   $("version").textContent = st.version || "";
   const rows = [];
-  st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} gate=${c.gate.attackMs}/${c.gate.releaseMs}/${c.gate.holdMs}ms thr=${c.gate.thresholdDb.toFixed(1)}dB`));
+  st.inputs.forEach((c, i) => rows.push(`In${"ABCD"[i]} ${c.name}${st.muted[i] ? " MUTED" : ""} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} gate=${c.gate.attackMs}/${c.gate.releaseMs}/${c.gate.holdMs}ms thr=${c.gate.thresholdDb.toFixed(1)}dB`));
   st.outputs.forEach((c, i) => {
-    rows.push(`Out${i + 1} ${c.name} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} route=${c.routingMask} delay=${c.delayMs.toFixed(2)}ms hpf=${c.hpfHz ? c.hpfHz.toFixed(1) + "Hz" : "off"} lpf=${c.lpfHz ? c.lpfHz.toFixed(1) + "Hz" : "off"} comp=r${c.comp.ratioIndex}/k${c.comp.kneeDb}/${c.comp.attackMs}/${c.comp.releaseMs}ms thr=${c.comp.thresholdDb.toFixed(1)}dB`);
+    rows.push(`Out${i + 1} ${c.name}${st.muted[4 + i] ? " MUTED" : ""} gain=${c.gainDb.toFixed(1)}dB pol=${c.polarity ? "inv" : "norm"} route=${c.routingMask} delay=${c.delayMs.toFixed(2)}ms hpf=${c.hpfHz ? c.hpfHz.toFixed(1) + "Hz" : "off"} lpf=${c.lpfHz ? c.lpfHz.toFixed(1) + "Hz" : "off"} comp=r${c.comp.ratioIndex}/k${c.comp.kneeDb}/${c.comp.attackMs}/${c.comp.releaseMs}ms thr=${c.comp.thresholdDb.toFixed(1)}dB`);
     c.bands.forEach((b, j) => {
-      if (Math.abs(b.gainDb) > 0.01) rows.push(`  band${j}: ${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB type=${b.type}`);
+      if (Math.abs(b.gainDb) > 0.01) rows.push(`  band${j}: ${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB type=${b.type}${b.bypass ? " bypassed" : ""}`);
     });
   });
   $("channels").innerHTML = "<pre>" + rows.join("\n") + "</pre>";
@@ -88,12 +86,12 @@ async function refreshState() {
   $("history").textContent = h.map((e) => `${e.time} [${e.target}] ${e.what}`).join("\n") || "(no writes yet)";
 }
 
-$("btn-hw").onclick = async () => { await post("/api/connect", {}); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshStatus(); await refreshState(); };
-$("btn-sim").onclick = async () => { await post("/api/connect", { simulator: true }); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshStatus(); await refreshState(); };
+$("btn-hw").onclick = async () => { try { await post("/api/connect", {}); await refreshStatus(); await refreshState(); liveOk(); } catch (e) { liveErr(e); } };
+$("btn-sim").onclick = async () => { try { await post("/api/connect", { simulator: true }); await refreshStatus(); await refreshState(); liveOk(); } catch (e) { liveErr(e); } };
 $("btn-dc").onclick = async () => { await post("/api/disconnect"); await refreshStatus(); };
 $("btn-refresh").onclick = refreshState;
-$("btn-snap").onclick = () => post("/api/snapshot");
-$("btn-revert").onclick = async () => { await post("/api/revert"); clearPending(); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshState(); };
+$("btn-snap").onclick = () => liveApply("/api/snapshot", {});
+$("btn-revert").onclick = () => liveApply("/api/revert", {});
 $("btn-meters").onclick = async () => {
   const m = await api("/api/meters");
   $("meters").textContent = m.meters.map((v) => v.toFixed(2)).join(" ");
@@ -114,35 +112,34 @@ $("btn-meters").onclick = async () => {
     g.fillText(names[i], x, cv.height - 2);
   });
 };
-$("btn-gain").onclick = () => { const ch = chan(); stage(`gain:${ch}`, `gain ${ch} ${$("ctl-gain").value}dB`, "/api/gain", { chan: ch, db: Number($("ctl-gain").value) }); };
-$("btn-delay").onclick = () => { const ch = chan(); stage(`delay:${ch}`, `delay ${ch} ${$("ctl-delay").value}ms`, "/api/delay", { chan: ch, ms: Number($("ctl-delay").value) }); };
-$("btn-route").onclick = () => { const ch = chan(); stage(`routing:${ch}`, `routing ${ch} mask ${$("ctl-route").value}`, "/api/routing", { chan: ch, mask: Number($("ctl-route").value) }); };
-$("btn-mute-on").onclick = () => { const ch = chan(); stage(`mute:${ch}`, `mute ${ch}`, "/api/mute", { chan: ch, on: true }); };
-$("btn-mute-off").onclick = () => { const ch = chan(); stage(`mute:${ch}`, `unmute ${ch}`, "/api/mute", { chan: ch, on: false }); };
-$("btn-pol-inv").onclick = () => { const ch = chan(); stage(`polarity:${ch}`, `invert ${ch}`, "/api/polarity", { chan: ch, invert: true }); };
-$("btn-pol-norm").onclick = () => { const ch = chan(); stage(`polarity:${ch}`, `polarity normal ${ch}`, "/api/polarity", { chan: ch, invert: false }); };
+$("btn-gain").onclick = () => { const ch = chan(); liveApply("/api/gain", { chan: ch, db: Number($("ctl-gain").value) }); };
+$("btn-delay").onclick = () => { const ch = chan(); liveApply("/api/delay", { chan: ch, ms: Number($("ctl-delay").value) }); };
+$("btn-route").onclick = () => { const ch = chan(); liveApply("/api/routing", { chan: ch, mask: Number($("ctl-route").value) }); };
+$("btn-mute-on").onclick = () => { const ch = chan(); liveApply("/api/mute", { chan: ch, on: true }); };
+$("btn-mute-off").onclick = () => { const ch = chan(); liveApply("/api/mute", { chan: ch, on: false }); };
+$("btn-pol-inv").onclick = () => { const ch = chan(); liveApply("/api/polarity", { chan: ch, invert: true }); };
+$("btn-pol-norm").onclick = () => { const ch = chan(); liveApply("/api/polarity", { chan: ch, invert: false }); };
 
 $("btn-gate").onclick = () => {
   const ch = chan();
-  stage(`gate:${ch}`, `gate ${ch}`, "/api/gate", {
+  liveApply("/api/gate", {
     chan: ch, attackMs: Number($("gate-atk").value), releaseMs: Number($("gate-rel").value),
     holdMs: Number($("gate-hold").value), thresholdDb: Number($("gate-thr").value),
   });
 };
 $("btn-comp").onclick = () => {
   const ch = chan();
-  stage(`comp:${ch}`, `compressor ${ch}`, "/api/compressor", {
+  liveApply("/api/compressor", {
     chan: ch, ratioIndex: Number($("comp-ratio").value), kneeDb: Number($("comp-knee").value),
     attackMs: Number($("comp-atk").value), releaseMs: Number($("comp-rel").value),
     thresholdDb: Number($("comp-thr").value),
   });
 };
-$("btn-recall").onclick = async () => { await post("/api/preset", { action: "recall", slot: Number($("preset-slot").value) }); clearPending(); if (window.clearPeqBypass) window.clearPeqBypass(); await refreshState(); };
-$("btn-store").onclick = async () => { await post("/api/preset", { action: "store", slot: Number($("preset-slot").value) }); clearPending(); await refreshState(); };
+$("btn-recall").onclick = () => liveApply("/api/preset", { action: "recall", slot: Number($("preset-slot").value) });
+$("btn-store").onclick = () => liveApply("/api/preset", { action: "store", slot: Number($("preset-slot").value) });
 
-$("btn-sig").onclick = async () => {
-  await post("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });
-  await refreshState();
+$("btn-sig").onclick = () => {
+  liveApply("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });
 };
 function fill(sel, items) {
   const cur = $(sel).value;

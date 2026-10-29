@@ -114,6 +114,7 @@ canvas { display: block; }
 .peq-out:first-child { border-top: none; padding-top: 0; margin-top: 0; }
 .peq-out h3 { font-size: 0.9rem; color: var(--text); margin: 0 0 0.3rem; }
 #peq-hint, #mic-status, #loop-status, #meters { font-size: 0.82rem; color: var(--muted); }
+#live.bad { color: var(--bad); border-color: var(--bad); }
 #peq-notice { border: 1px dashed var(--accent-dim); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; color: var(--accent); }
 #loop-status { font-variant-numeric: tabular-nums; }
 .peq-row {
@@ -127,6 +128,9 @@ canvas { display: block; }
 #loop-timeline table { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 #loop-timeline td, #loop-timeline th { border: 1px solid var(--line); padding: 0.25rem 0.55rem; text-align: right; }
 #loop-timeline th { color: var(--muted); font-weight: 600; }
+#loop-timeline tr[data-iter]:hover td, #loop-timeline tr.lit td { background: #2a2f37; }
+#loop-timeline button[data-apply] { padding: 0.15rem 0.5rem; font-size: 0.75rem; white-space: nowrap; }
+#loop-timeline td:nth-child(8) { text-align: left; max-width: 22rem; }
 #meters-cv { margin-top: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius); background: #101215; }
 .mixer-gains { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; margin-bottom: 0.4rem; }
 .mix-card { background: #101215; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.55rem 0.7rem; }

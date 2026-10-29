@@ -15,8 +15,7 @@
     <button id="btn-hw">Connect DSP</button>
     <button id="btn-sim">Simulator</button>
     <button id="btn-dc" class="danger">Disconnect</button>
-    <button id="btn-write" class="primary" disabled>Write (0)</button>
-    <button id="btn-discard" title="drop staged edits">Discard</button>
+    <span id="live" class="pill">live</span>
   </div>
 </header>
 <nav class="tabs">
@@ -54,7 +53,7 @@
   </div>
   <div class="tabpage" id="tab-dsp">
     <section>
-      <h2>Mixer <small>gains + 4x4 routing — edits stage locally, press Write to send</small></h2>
+      <h2>Mixer <small>gains + 4x4 routing — every change applies to the DSP immediately</small></h2>
       <div id="mixer-offline">No device state — connect the DSP or simulator, then press Refresh.</div>
       <div id="mixer">
         <h3>Input gains</h3>
@@ -134,7 +133,7 @@
     <section>
       <h2>PEQ + crossover designer</h2>
       <div class="row">
-        <span id="peq-hint">edits stage locally and preview on the graph — press Write to send them to the device</span>
+        <span id="peq-hint">every Set, Reset, bypass, and crossover change applies to the device immediately</span>
       </div>
       <div id="peq-notice">No device state — connect the DSP or simulator, then press Refresh.</div>
       <div id="peq-all" style="display:none">

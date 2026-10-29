@@ -196,13 +196,8 @@ function buildBandRows(oi) {
       `<button data-a="set">Set</button><button data-a="reset">Reset</button>`;
     row.querySelector('[data-a="set"]').onclick = () => peqPostBand(oi, i, false);
     row.querySelector('[data-a="reset"]').onclick = () => peqPostBand(oi, i, true);
-    row.querySelector('[data-k="bypass"]').onchange = (e) => {
-      const on = e.target.checked;
-      if (on) peqBypass.add(peqKey(oi, i));
-      else peqBypass.delete(peqKey(oi, i));
-      syncPill(oi, i);
-      drawPeq(oi);
-      peqStage(oi, i, peqReadRow(oi, i));
+    row.querySelector('[data-k="bypass"]').onchange = () => {
+      peqSend(oi, i, peqReadRow(oi, i));
     };
     host.appendChild(row);
   }
@@ -232,9 +227,9 @@ function peqReadRow(oi, i) {
   };
 }
 
-function peqStage(oi, i, p) {
+function peqSend(oi, i, p) {
   const chan = PEQ_OUTS[oi];
-  stage(`peq:${chan}:band${i + 1}`, `peq ${chan} band ${i + 1}`, "/api/peq", { chan, band: i, ...p });
+  liveApply("/api/peq", { chan, band: i, ...p });
 }
 
 function peqPostBand(oi, i, reset) {
@@ -242,12 +237,7 @@ function peqPostBand(oi, i, reset) {
   const p = reset
     ? { freqHz: out.bands[i].freqHz, q: 1.4, gainDb: 0, type: 0, bypass: false }
     : peqReadRow(oi, i);
-  Object.assign(out.bands[i], { type: p.type, freqHz: p.freqHz, q: p.q, gainDb: p.gainDb });
-  if (p.bypass) peqBypass.add(peqKey(oi, i));
-  else peqBypass.delete(peqKey(oi, i));
-  fillOut(oi);
-  drawPeq(oi);
-  peqStage(oi, i, peqReadRow(oi, i));
+  peqSend(oi, i, p);
 }
 
 function fillOut(oi) {
@@ -277,18 +267,14 @@ function drawAllPeq() {
 
 window.refreshPeq = function (st) {
   peqState = st;
+  peqBypass.clear();
+  st.outputs.forEach((out, oi) => out.bands.forEach((b, i) => {
+    if (b.bypass) peqBypass.add(peqKey(oi, i));
+  }));
   document.getElementById("peq-notice").style.display = "none";
   document.getElementById("peq-all").style.display = "";
   fillPeq();
   drawAllPeq();
-};
-
-window.clearPeqBypass = function () {
-  peqBypass.clear();
-  if (peqState) {
-    fillPeq();
-    drawAllPeq();
-  }
 };
 
 window.peqFailed = function () {
@@ -314,12 +300,12 @@ window.addEventListener("DOMContentLoaded", () => {
       });
     }
     buildBandRows(oi);
-    peqEl(oi, "btn-peq-xo").onclick = () => {
+    peqEl(oi, "btn-peq-xo").onclick = async () => {
       const chan = PEQ_OUTS[oi];
       const hf = Number(peqEl(oi, "peq-hpf").value || 0);
       const lf = Number(peqEl(oi, "peq-lpf").value || 0);
-      stage(`xo:${chan}:hpf`, `hpf ${chan}`, "/api/crossover", { chan, highPass: true, freqHz: hf || 20, slope: hf ? Number(peqEl(oi, "peq-hpf-slope").value) : 0 });
-      stage(`xo:${chan}:lpf`, `lpf ${chan}`, "/api/crossover", { chan, highPass: false, freqHz: lf || 20000, slope: lf ? Number(peqEl(oi, "peq-lpf-slope").value) : 0 });
+      await live("/api/crossover", { chan, highPass: true, freqHz: hf || 20, slope: hf ? Number(peqEl(oi, "peq-hpf-slope").value) : 0 });
+      await liveApply("/api/crossover", { chan, highPass: false, freqHz: lf || 20000, slope: lf ? Number(peqEl(oi, "peq-lpf-slope").value) : 0 });
     };
   }
 });

@@ -22,27 +22,14 @@ function mixerGainCard(name, isInput) {
     mixerSetGain(name, v);
   });
   muteBtn.onclick = () => {
-    const on = muteBtn.textContent !== "MUTED";
-    stage(`mute:${name}`, `${on ? "mute" : "unmute"} ${name}`, "/api/mute", { chan: name, on });
-    muteBtn.textContent = on ? "MUTED" : "MUTE";
-    muteBtn.classList.toggle("muted", on);
+    const idx = MIX_INS.indexOf(name) >= 0 ? MIX_INS.indexOf(name) : 4 + MIX_OUTS.indexOf(name);
+    liveApply("/api/mute", { chan: name, on: !(mixerState && mixerState.muted[idx]) });
   };
   return card;
 }
 
 function mixerSetGain(name, db) {
-  stage(`gain:${name}`, `gain ${name} ${db}dB`, "/api/gain", { chan: name, db });
-  const card = document.querySelector(`.mix-card[data-chan="${name}"]`);
-  if (card) {
-    card.querySelector("[data-slider]").value = String(db);
-    card.querySelector("[data-num]").value = String(db);
-  }
-  if (mixerState) {
-    const inp = MIX_INS.indexOf(name);
-    if (inp >= 0) mixerState.inputs[inp].gainDb = db;
-    const out = MIX_OUTS.indexOf(name);
-    if (out >= 0) mixerState.outputs[out].gainDb = db;
-  }
+  liveApply("/api/gain", { chan: name, db });
 }
 
 function mixerBuildGains() {
@@ -54,28 +41,26 @@ function mixerBuildGains() {
   MIX_OUTS.forEach((n) => outs.appendChild(mixerGainCard(n, false)));
 }
 
+function mixerRenderCard(name, gainDb, muted) {
+  const card = document.querySelector(`.mix-card[data-chan="${name}"]`);
+  if (!card) return;
+  card.querySelector("[data-slider]").value = String(gainDb);
+  card.querySelector("[data-num]").value = gainDb.toFixed(1);
+  const muteBtn = card.querySelector("[data-mute]");
+  muteBtn.textContent = muted ? "MUTED" : "MUTE";
+  muteBtn.classList.toggle("muted", muted);
+}
+
 function mixerRenderGains() {
   if (!mixerState) return;
-  mixerState.inputs.forEach((c, i) => {
-    const card = document.querySelector(`.mix-card[data-chan="${MIX_INS[i]}"]`);
-    if (!card) return;
-    card.querySelector("[data-slider]").value = String(c.gainDb);
-    card.querySelector("[data-num]").value = c.gainDb.toFixed(1);
-  });
-  mixerState.outputs.forEach((c, i) => {
-    const card = document.querySelector(`.mix-card[data-chan="${MIX_OUTS[i]}"]`);
-    if (!card) return;
-    card.querySelector("[data-slider]").value = String(c.gainDb);
-    card.querySelector("[data-num]").value = c.gainDb.toFixed(1);
-  });
+  mixerState.inputs.forEach((c, i) => mixerRenderCard(MIX_INS[i], c.gainDb, mixerState.muted[i]));
+  mixerState.outputs.forEach((c, i) => mixerRenderCard(MIX_OUTS[i], c.gainDb, mixerState.muted[4 + i]));
 }
 
 function mixerSetMask(outIdx, mask) {
   const name = MIX_OUTS[outIdx];
   mask &= 15;
-  mixerState.outputs[outIdx].routingMask = mask;
-  stage(`routing:${name}`, `routing ${name} mask ${mask}`, "/api/routing", { chan: name, mask });
-  mixerRenderMatrix();
+  liveApply("/api/routing", { chan: name, mask });
 }
 
 function mixerRenderMatrix() {

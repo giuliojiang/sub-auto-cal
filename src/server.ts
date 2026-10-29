@@ -259,6 +259,17 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   "GET /api/loop/state": async (_req, res) => {
     json(res, 200, loop ? loop.snapshot() : { running: false, timeline: [] });
   },
+  "POST /api/loop/apply": async (_req, res, body) => {
+    try {
+      if (!loop) throw new Error("no loop yet; GO first");
+      const iter = Number(body?.iter);
+      if (!Number.isInteger(iter) || iter < 0) throw new Error("iter must be a non-negative integer");
+      await loop.applyIter(iter);
+      json(res, 200, { ok: true });
+    } catch (err) {
+      json(res, 400, { error: err instanceof Error ? err.message : String(err) });
+    }
+  },
   "POST /api/miccal/load": async (_req, res, body) => {
     try {
       const fileName = String(body?.fileName ?? "upload.txt");

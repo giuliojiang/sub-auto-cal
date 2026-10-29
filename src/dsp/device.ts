@@ -33,6 +33,8 @@ export class DspDevice {
   private sent: SentRecord[] = [];
   private state: DeviceState | null = null;
   private snapshot: DeviceState | null = null;
+  private muted = new Array(8).fill(false) as boolean[];
+  private bypass: boolean[][] = Array.from({ length: 4 }, () => new Array(7).fill(false));
   private link: DspLink;
 
   constructor(link: DspLink) {
@@ -56,6 +58,9 @@ export class DspDevice {
   }
 
   async connect(): Promise<DeviceState> {
+    // The hardware reports neither mute nor per-band bypass, so local truth restarts as all-off.
+    this.muted = new Array(8).fill(false);
+    this.bypass = Array.from({ length: 4 }, () => new Array(7).fill(false));
     await this.link.query(CMD.status);
     let version = "";
     try {
@@ -96,7 +101,10 @@ export class DspDevice {
     const parsed = parsePresetImage(img);
     const version = this.state?.version ?? "";
     const meters = await this.meters().catch(() => [0, 0, 0, 0, 0, 0, 0, 0]);
-    this.state = { ...parsed, version, meters };
+    this.state = { ...parsed, version, meters, muted: [...this.muted] };
+    this.state.outputs.forEach((o, i) => o.bands.forEach((b, j) => {
+      b.bypass = this.bypass[i]![j];
+    }));
     return this.state;
   }
 
@@ -108,11 +116,6 @@ export class DspDevice {
   async setGain(chan: number, db: number): Promise<void> {
     await this.link.command(levelFrame(chan, db));
     this.log(`gain ch=${chan} db=${db}`);
-  }
-
-  async setPeq(chan: number, band: number, p: PeqParams): Promise<void> {
-    await this.link.command(peqFrame(chan, band, p));
-    this.log(`peq ch=${chan} band=${band} ${p.freqHz}Hz q=${p.q} ${p.gainDb}dB type=${p.type}`);
   }
 
   async setCrossover(chan: number, highPass: boolean, freqHz: number, slope: number): Promise<void> {
@@ -132,7 +135,14 @@ export class DspDevice {
 
   async setMute(chan: number, on: boolean): Promise<void> {
     await this.link.command(muteFrame(chan, on));
+    this.muted[chan] = on;
     this.log(`mute ch=${chan} on=${on}`);
+  }
+
+  async setPeq(chan: number, band: number, p: PeqParams): Promise<void> {
+    await this.link.command(peqFrame(chan, band, p));
+    if (chan >= 4 && chan < 8 && band >= 0 && band < 7) this.bypass[chan - 4]![band] = p.bypass === true;
+    this.log(`peq ch=${chan} band=${band} ${p.freqHz}Hz q=${p.q} ${p.gainDb}dB type=${p.type}`);
   }
 
   async setPolarity(chan: number, invert: boolean): Promise<void> {
@@ -174,6 +184,9 @@ export class DspDevice {
   async revert(): Promise<DeviceState | null> {
     const s = this.snapshot;
     if (!s) return null;
+    for (let i = 0; i < 8; i++) {
+      if (this.muted[i] !== s.muted[i]) await this.setMute(i, s.muted[i]!);
+    }
     for (let i = 0; i < 4; i++) {
       const inp = s.inputs[i]!;
       await this.setGain(i, inp.gainDb);
@@ -190,7 +203,7 @@ export class DspDevice {
       await this.setCompressor(ch, { ...out.comp });
       for (let b = 0; b < 7; b++) {
         const band = out.bands[b]!;
-        await this.setPeq(ch, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: band.type });
+        await this.setPeq(ch, b, { freqHz: band.freqHz, q: band.q, gainDb: band.gainDb, type: band.type, bypass: band.bypass === true });
       }
     }
     return this.refresh();

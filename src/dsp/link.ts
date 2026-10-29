@@ -73,6 +73,16 @@ export class HidLink implements DspLink {
   }
 
   private lastOk = 0;
+  private tail: Promise<void> = Promise.resolve();
+
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(fn, fn);
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
 
   private async wake(): Promise<void> {
     const { buildRequest, parseReply } = await import("./protocol.ts");
@@ -89,18 +99,20 @@ export class HidLink implements DspLink {
   }
 
   async command(frame: Uint8Array): Promise<void> {
-    this.dev.write([0x00, ...frame]);
-    let ack: number[] = [];
-    try {
-      ack = this.dev.readTimeout(500);
-    } catch {}
-    if (ack.length === 0) {
-      this.reopen();
+    return this.enqueue(async () => {
       this.dev.write([0x00, ...frame]);
+      let ack: number[] = [];
       try {
-        this.dev.readTimeout(500);
+        ack = this.dev.readTimeout(500);
       } catch {}
-    }
+      if (ack.length === 0) {
+        this.reopen();
+        this.dev.write([0x00, ...frame]);
+        try {
+          this.dev.readTimeout(500);
+        } catch {}
+      }
+    });
   }
 
   private attempt(code: number, frame: Uint8Array, timeoutMs: number): Reply {
@@ -117,32 +129,34 @@ export class HidLink implements DspLink {
   }
 
   async query(code: number, data = new Uint8Array(0), timeoutMs = 800): Promise<Reply> {
-    const { buildRequest } = await import("./protocol.ts");
-    if (Date.now() - this.lastOk > 10000 && code !== 0x10) {
-      try {
-        await this.wake();
-      } catch {
-        this.reopen();
+    return this.enqueue(async () => {
+      const { buildRequest } = await import("./protocol.ts");
+      if (Date.now() - this.lastOk > 10000 && code !== 0x10) {
+        try {
+          await this.wake();
+        } catch {
+          this.reopen();
+        }
       }
-    }
-    const frame = buildRequest(code, data);
-    try {
-      const r = await this.attempt(code, frame, timeoutMs);
-      this.lastOk = Date.now();
-      return r;
-    } catch {
-      await new Promise((res) => setTimeout(res, 400));
+      const frame = buildRequest(code, data);
       try {
-        const r = await this.attempt(code, frame, timeoutMs);
+        const r = this.attempt(code, frame, timeoutMs);
         this.lastOk = Date.now();
         return r;
       } catch {
-        this.reopen();
-        const r = await this.attempt(code, frame, timeoutMs);
-        this.lastOk = Date.now();
-        return r;
+        await new Promise((res) => setTimeout(res, 400));
+        try {
+          const r = this.attempt(code, frame, timeoutMs);
+          this.lastOk = Date.now();
+          return r;
+        } catch {
+          this.reopen();
+          const r = this.attempt(code, frame, timeoutMs);
+          this.lastOk = Date.now();
+          return r;
+        }
       }
-    }
+    });
   }
 
   close(): void {

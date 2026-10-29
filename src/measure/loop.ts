@@ -94,6 +94,14 @@ export class LoopRunner {
     this.stopAsked = true;
   }
 
+  async applyIter(iter: number): Promise<void> {
+    const dev = this.config.getDevice?.() ?? null;
+    if (!dev) throw new Error("connect the DSP or simulator first");
+    const entry = this.timeline.find((t) => t.iter === iter);
+    if (!entry) throw new Error(`unknown iteration ${iter}`);
+    await this.pushCandidate(dev, cloneCandidate(entry.candidate));
+  }
+
   private types: number[][] = [];
   private bases: ChannelBase[] = [];
 
