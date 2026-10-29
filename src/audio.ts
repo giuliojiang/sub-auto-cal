@@ -173,12 +173,32 @@ export function alsaHwId(label: string): string | null {
 }
 
 export function preferCaptureId(capture: string[]): string | undefined {
-  return capture.find((d) => /dmic/i.test(d)) ?? capture.find((d) => /mic/i.test(d));
+  return (
+    capture.find((d) => !d.startsWith("pulse:") && /umik|u18db/i.test(d)) ??
+    capture.find((d) => /umik/i.test(d)) ??
+    capture.find((d) => /dmic/i.test(d)) ??
+    capture.find((d) => /mic/i.test(d))
+  );
 }
 
 export async function defaultCaptureId(): Promise<string | undefined> {
   try {
     return preferCaptureId((await listAudioDevices()).capture);
+  } catch {
+    return undefined;
+  }
+}
+
+export function preferPlaybackId(playback: string[]): string | undefined {
+  return (
+    playback.find((d) => d.startsWith("pulse:") && /google/i.test(d)) ??
+    playback.find((d) => d.startsWith("pulse:") && /headphone/i.test(d))
+  );
+}
+
+export async function defaultPlaybackId(): Promise<string | undefined> {
+  try {
+    return preferPlaybackId((await listAudioDevices()).playback);
   } catch {
     return undefined;
   }
@@ -213,7 +233,8 @@ export async function noiseCheck(
   const rec = join(dir, "rec.wav");
   const gen = kind === "pink" ? genPinkNoise : genWhiteNoise;
   writeWav(stim, gen(seconds));
-  const play = playWav(stim, playbackId).catch((e) => ({ code: 1, out: String(e) }));
+  const playId = playbackId ?? (await defaultPlaybackId());
+  const play = playWav(stim, playId).catch((e) => ({ code: 1, out: String(e) }));
   await new Promise((res) => setTimeout(res, 250));
   const cap = captureId ?? (await defaultCaptureId());
   await recordWav(rec, seconds + 1, SAMPLE_RATE, cap);
@@ -224,7 +245,7 @@ export async function noiseCheck(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const kept = join(keepDir, `noise-check-${stamp}.wav`);
   writeFileSync(kept, readFileSync(rec));
-  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds, playbackId: playbackId ?? "default", captureId: cap ?? "default" };
+  return { ...analyzeLevel(samples), stimulusFile: stim, recordingFile: kept, sampleRate, seconds, playbackId: playId ?? "default", captureId: cap ?? "default" };
 }
 
 export async function defaultRate(): Promise<number> {

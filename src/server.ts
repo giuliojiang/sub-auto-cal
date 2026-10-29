@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { DspDevice } from "./dsp/device.ts";
 import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
-import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, defaultCaptureId } from "./audio.ts";
+import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, preferPlaybackId, defaultCaptureId, defaultPlaybackId } from "./audio.ts";
 import { LoopRunner } from "./measure/loop.ts";
 import { parseMicCal, type MicCal, type CalProvenance } from "./measure/miccal.ts";
 import { mkdtempSync } from "node:fs";
@@ -241,7 +241,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
         fEnd,
         sweepSecs: Math.max(2, Math.min(20, Number(body?.sweepSecs ?? 4))),
         maxIter: Math.max(0, Math.min(200, Number(body?.maxIter ?? 6))),
-        playbackId: body?.playbackId,
+        playbackId: body?.playbackId ?? (await defaultPlaybackId()),
         captureId: body?.captureId ?? (await defaultCaptureId()),
         getCal: () => micCal,
         getDevice: () => device,
@@ -290,7 +290,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   },
   "GET /api/audio/devices": async (_req, res) => {
     const devs = await listAudioDevices();
-    json(res, 200, { ...devs, defaultCapture: preferCaptureId(devs.capture) ?? null });
+    json(res, 200, { ...devs, defaultCapture: preferCaptureId(devs.capture) ?? null, defaultPlayback: preferPlaybackId(devs.playback) ?? null });
   },
   "GET /api/audio/waveform": async (req, res) => {
     try {
@@ -320,7 +320,7 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
       const gen = body?.kind === "white" ? genWhiteNoise : genPinkNoise;
       const path = join(mkdtempSync(join(tmpdir(), "subcal-")), "play.wav");
       writeWav(path, gen(seconds));
-      await playWav(path, body?.playbackId);
+      await playWav(path, body?.playbackId ?? (await defaultPlaybackId()));
       json(res, 200, { ok: true });
     } catch (err) {
       json(res, 500, { error: String(err) });
