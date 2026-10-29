@@ -17,10 +17,12 @@ import {
   mutateCandidate,
   deviceStateToCandidate,
   cloneCandidate,
+  findPeaks,
   IMPROVE_DB,
   FLATNESS_WEIGHT,
   type Candidate,
   type ChannelBase,
+  type Peak,
   type Scored,
 } from "./objective.ts";
 import { applyCal, type MicCal, type CalProvenance } from "./miccal.ts";
@@ -91,6 +93,10 @@ export function candidateMismatches(st: DeviceState, c: Candidate, types: number
 
 export function makeBaseline(scored: Scored): Scored {
   return { ...scored, loss: 0, cost: FLATNESS_WEIGHT * scored.flatness };
+}
+
+export function peaksOf(response: { freqs: number[]; db: number[] }, mean: number, fStart: number, fEnd: number): Peak[] {
+  return findPeaks(Float32Array.from(response.freqs), Float32Array.from(response.db), fStart, fEnd, mean, 6);
 }
 
 export function isLargeMutation(iter: number): boolean {
@@ -245,14 +251,16 @@ export class LoopRunner {
       let best: Candidate = cloneCandidate(start.candidate);
       let bestCost = this.baseline.cost;
       let bestIterNum = 0;
+      let bestPeaks = peaksOf(base.response, base.scored.mean, this.config.fStart, this.config.fEnd);
       for (let iter = 1; (this.config.maxIter <= 0 || iter <= this.config.maxIter) && !this.stopAsked; iter++) {
         const large = isLargeMutation(iter);
-        const current = mutateCandidate(best, this.bases, this.config.fStart, this.config.fEnd, large);
+        const current = mutateCandidate(best, this.bases, this.config.fStart, this.config.fEnd, large, bestPeaks);
         const m = await this.measure(dev, current);
         if (m.scored.cost < bestCost - IMPROVE_DB) {
           bestCost = m.scored.cost;
           best = cloneCandidate(current);
           bestIterNum = iter;
+          bestPeaks = peaksOf(m.response, m.scored.mean, this.config.fStart, this.config.fEnd);
         }
         this.timeline.push({ iter, kind: large ? "mutation" : "tweak", candidate: cloneCandidate(current), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
       }

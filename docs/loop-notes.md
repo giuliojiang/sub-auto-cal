@@ -15,7 +15,8 @@ deviation from a shaped target (flat from lowcut to end, falling
 12 dB per octave from lowcut down to start, so weak low end reads
 as on-target instead of forcing cuts elsewhere), greedy
 measurement-driven hill-climb (alternating small tweaks and
-large mutations), Pareto log, STOP button, timeline with measured
+peak-guided large mutations, which place cuts at the residual
+peaks of the current best response), Pareto log, STOP button, timeline with measured
 F / mean / loss / J.
 
 Starting state is the DSP's live state: GO snapshots the device,

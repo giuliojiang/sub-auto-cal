@@ -53,7 +53,7 @@ export interface Peak {
   q: number;
 }
 
-export function findPeaks(grid: Float32Array, db: Float32Array, fStart: number, fEnd: number, mean: number): Peak[] {
+export function findPeaks(grid: Float32Array, db: Float32Array, fStart: number, fEnd: number, mean: number, maxPeaks = 2): Peak[] {
   const peaks: Peak[] = [];
   for (let i = 1; i < db.length - 1; i++) {
     const f = grid[i] as number;
@@ -72,7 +72,7 @@ export function findPeaks(grid: Float32Array, db: Float32Array, fStart: number, 
   const picked: Peak[] = [];
   for (const p of peaks) {
     if (picked.every((q) => Math.abs(Math.log2(p.freqHz / q.freqHz)) >= 1 / 6)) picked.push(p);
-    if (picked.length >= 2) break;
+    if (picked.length >= Math.max(1, maxPeaks)) break;
   }
   return picked;
 }
@@ -146,7 +146,7 @@ export function validCandidate(c: Candidate, bases: ChannelBase[], _fLo: number,
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = (n: number) => Math.floor(Math.random() * n);
 
-export function mutateCandidate(c: Candidate, bases: ChannelBase[], fLo: number, fHi: number, large: boolean): Candidate {
+export function mutateCandidate(c: Candidate, bases: ChannelBase[], fLo: number, fHi: number, large: boolean, peaks: Peak[] = []): Candidate {
   for (let tries = 0; tries < 50; tries++) {
     const next = cloneCandidate(c);
     const step = (span: number) => (large ? rnd(-span, span) : rnd(-span / 4, span / 4));
@@ -174,6 +174,11 @@ export function mutateCandidate(c: Candidate, bases: ChannelBase[], fLo: number,
           const b = ch.bands[pick(BANDS_PER_CHANNEL)]!;
           if (Math.random() < 0.25) {
             b.gainDb = 0;
+          } else if (peaks.length) {
+            const pk = peaks[pick(peaks.length)]!;
+            b.freqHz = Math.max(fLo, Math.min(fHi, pk.freqHz * Math.pow(2, rnd(-1 / 12, 1 / 12))));
+            b.q = Math.max(0.4, Math.min(20, pk.q * Math.pow(2, rnd(-0.5, 0.5))));
+            b.gainDb = -Math.min(12, pk.heightDb * rnd(0.5, 1));
           } else {
             b.freqHz = fLo * Math.pow(fHi / fLo, Math.random());
             b.q = Math.max(0.4, Math.min(20, b.q * Math.pow(2, rnd(-1, 1))));

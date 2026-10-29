@@ -178,6 +178,16 @@ describe("objective", () => {
     assert.ok(Math.abs(raw.flatness - ssm.flatness) > 0.5);
   });
 
+  it("peak finder honors a larger cap", () => {
+    const four = Float32Array.from(flat);
+    for (let i = 0; i < 100; i++) {
+      const f = grid[i] as number;
+      for (const c of [200, 700, 2000, 5000]) four[i] += 8 * Math.exp(-((Math.log2(f / c)) ** 2) / 0.02);
+    }
+    assert.equal(findPeaks(grid, four, 100, 8000, -20).length, 2);
+    assert.equal(findPeaks(grid, four, 100, 8000, -20, 6).length, 4);
+  });
+
   it("peak finder places two separated cuts", () => {
     const bumpy = Float32Array.from(flat);
     for (let i = 0; i < 100; i++) {
@@ -269,6 +279,26 @@ describe("resume invariants", () => {
       for (const large of [false, true]) mutateCandidate(candidate, bases, 100, 8000, large);
     }
     assert.equal(JSON.stringify(candidate), before);
+  });
+
+  it("large mutations with peaks land cuts near residual peaks", () => {
+    const { candidate, bases } = deviceStateToCandidate(loaded);
+    for (const ch of candidate.channels) for (const b of ch.bands) b.gainDb = 0;
+    const peaks = [{ freqHz: 300, heightDb: 8, q: 2 }];
+    let near = 0;
+    let total = 0;
+    for (let i = 0; i < 100; i++) {
+      const m = mutateCandidate(candidate, bases, 100, 8000, true, peaks);
+      for (const ch of m.channels)
+        for (const b of ch.bands) {
+          if (b.gainDb < -0.5) {
+            total++;
+            if (Math.abs(Math.log2(b.freqHz / 300)) < 1 / 6) near++;
+          }
+        }
+    }
+    assert.ok(total > 50, `too few cuts ${total}`);
+    assert.ok(near / total > 0.4, `only ${near}/${total} cuts near the peak`);
   });
 
   it("rejects boosts, stacked audible cuts, and out-of-range moves", () => {
