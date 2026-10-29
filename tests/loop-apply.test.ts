@@ -4,7 +4,7 @@ import { DspSimulator } from "../src/dsp/simulator.ts";
 import { DspDevice } from "../src/dsp/device.ts";
 import type { DspLink } from "../src/dsp/link.ts";
 import type { Reply } from "../src/dsp/protocol.ts";
-import { applyCandidate, candidateMismatches } from "../src/measure/loop.ts";
+import { applyCandidate, candidateMismatches, makeBaseline } from "../src/measure/loop.ts";
 import { deviceStateToCandidate, cloneCandidate } from "../src/measure/objective.ts";
 
 class FrozenLink implements DspLink {
@@ -26,6 +26,15 @@ async function simDevice() {
   const types = st.outputs.map((o) => o.bands.map((b) => b.type));
   return { dev, candidate, types };
 }
+
+describe("baseline cost", () => {
+  it("scores the baseline on the same scale as every iteration", () => {
+    const b = makeBaseline({ mean: -98.5, flatness: 5.865, loss: 7.3, cost: 123 });
+    assert.equal(b.loss, 0);
+    assert.equal(b.mean, -98.5);
+    assert.ok(Math.abs(b.cost - 2 * 5.865) < 1e-9, `J=${b.cost}`);
+  });
+});
 
 describe("verify-before-sweep", () => {
   it("matching device state reports no mismatches", async () => {

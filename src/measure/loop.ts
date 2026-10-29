@@ -18,6 +18,7 @@ import {
   deviceStateToCandidate,
   cloneCandidate,
   IMPROVE_DB,
+  FLATNESS_WEIGHT,
   type Candidate,
   type ChannelBase,
   type Scored,
@@ -86,6 +87,10 @@ export function candidateMismatches(st: DeviceState, c: Candidate, types: number
     });
   }
   return out;
+}
+
+export function makeBaseline(scored: Scored): Scored {
+  return { ...scored, loss: 0, cost: FLATNESS_WEIGHT * scored.flatness };
 }
 
 export async function applyCandidate(dev: DspDevice, c: Candidate, types: number[][], opts: ApplyOpts = {}): Promise<void> {
@@ -227,7 +232,7 @@ export class LoopRunner {
       const start = deviceStateToCandidate(state);
       this.bases = start.bases;
       const base = await this.measure(dev, null);
-      this.baseline = { ...base.scored, loss: 0, cost: base.scored.flatness };
+      this.baseline = makeBaseline(base.scored);
       this.timeline.push({ iter: 0, kind: "baseline", candidate: start.candidate, scored: this.baseline, pareto: true, cal: base.prov, response: base.response });
       let best: Candidate = cloneCandidate(start.candidate);
       let bestCost = this.baseline.cost;
