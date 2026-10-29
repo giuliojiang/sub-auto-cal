@@ -4,7 +4,7 @@ import { DspSimulator } from "../src/dsp/simulator.ts";
 import { DspDevice } from "../src/dsp/device.ts";
 import type { DspLink } from "../src/dsp/link.ts";
 import type { Reply } from "../src/dsp/protocol.ts";
-import { applyCandidate, candidateMismatches, makeBaseline } from "../src/measure/loop.ts";
+import { applyCandidate, candidateMismatches, isLargeMutation, makeBaseline } from "../src/measure/loop.ts";
 import { deviceStateToCandidate, cloneCandidate } from "../src/measure/objective.ts";
 
 class FrozenLink implements DspLink {
@@ -33,6 +33,12 @@ describe("baseline cost", () => {
     assert.equal(b.loss, 0);
     assert.equal(b.mean, -98.5);
     assert.ok(Math.abs(b.cost - 2 * 5.865) < 1e-9, `J=${b.cost}`);
+  });
+});
+
+describe("mutation schedule", () => {
+  it("alternates tweaks and large mutations", () => {
+    assert.deepEqual([1, 2, 3, 4, 5, 6].map(isLargeMutation), [false, true, false, true, false, true]);
   });
 });
 

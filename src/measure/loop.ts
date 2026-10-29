@@ -93,6 +93,10 @@ export function makeBaseline(scored: Scored): Scored {
   return { ...scored, loss: 0, cost: FLATNESS_WEIGHT * scored.flatness };
 }
 
+export function isLargeMutation(iter: number): boolean {
+  return iter % 2 === 0;
+}
+
 export async function applyCandidate(dev: DspDevice, c: Candidate, types: number[][], opts: ApplyOpts = {}): Promise<void> {
   return dev.exclusive(async () => {
     const tries = Math.max(1, opts.tries ?? 3);
@@ -237,7 +241,7 @@ export class LoopRunner {
       let best: Candidate = cloneCandidate(start.candidate);
       let bestCost = this.baseline.cost;
       for (let iter = 1; (this.config.maxIter <= 0 || iter <= this.config.maxIter) && !this.stopAsked; iter++) {
-        const large = iter % 4 === 0;
+        const large = isLargeMutation(iter);
         const current = mutateCandidate(best, this.bases, this.config.fStart, this.config.fEnd, large);
         const m = await this.measure(dev, current);
         if (m.scored.cost < bestCost - IMPROVE_DB) {

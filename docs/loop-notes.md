@@ -14,8 +14,8 @@ the score input, J = 2·F + S_loss where F is the RMS
 deviation from a shaped target (flat from lowcut to end, falling
 12 dB per octave from lowcut down to start, so weak low end reads
 as on-target instead of forcing cuts elsewhere), greedy
-measurement-driven hill-climb (≈75% small tweaks, 25% large
-mutations), Pareto log, STOP button, timeline with measured
+measurement-driven hill-climb (alternating small tweaks and
+large mutations), Pareto log, STOP button, timeline with measured
 F / mean / loss / J.
 
 Starting state is the DSP's live state: GO snapshots the device,
