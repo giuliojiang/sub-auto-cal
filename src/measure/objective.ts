@@ -1,6 +1,6 @@
 export const FLATNESS_WEIGHT = 2;
 export const SPL_WEIGHT = 1;
-export const IMPROVE_DB = 0.1;
+export const IMPROVE_DB = 0.05;
 
 export interface Scored {
   mean: number;
