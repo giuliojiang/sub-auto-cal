@@ -249,6 +249,15 @@ describe("resume invariants", () => {
     }
   });
 
+  it("mutations leave the input candidate untouched, so best is never corrupted", () => {
+    const { candidate, bases } = deviceStateToCandidate(loaded);
+    const before = JSON.stringify(candidate);
+    for (let i = 0; i < 50; i++) {
+      for (const large of [false, true]) mutateCandidate(candidate, bases, 100, 8000, large);
+    }
+    assert.equal(JSON.stringify(candidate), before);
+  });
+
   it("rejects boosts, stacked audible cuts, and out-of-range moves", () => {
     const { candidate, bases } = deviceStateToCandidate(loaded);
     const copy = () => JSON.parse(JSON.stringify(candidate));
