@@ -87,6 +87,7 @@ async function refreshState() {
   $("channels").innerHTML = "<pre>" + rows.join("\n") + "</pre>";
   if (window.refreshMixer) window.refreshMixer(st);
   if (window.refreshPeq) window.refreshPeq(st);
+  refreshDelays(st);
   const h = await api("/api/history");
   $("history").textContent = h.map((e) => `${e.time} [${e.target}] ${e.what}`).join("\n") || "(no writes yet)";
 }
@@ -146,6 +147,52 @@ $("btn-store").onclick = () => liveApply("/api/preset", { action: "store", slot:
 $("btn-sig").onclick = () => {
   liveApply("/api/signal", { source: $("sig-src").value, freqHz: Number($("sig-freq").value) });
 };
+
+const DELAY_OUTS = ["Out1", "Out2", "Out3", "Out4"];
+
+function delayCm(ms) {
+  return `≈ ${(ms * 34.3).toFixed(1)} cm`;
+}
+
+function buildDelays() {
+  const host = $("delays");
+  DELAY_OUTS.forEach((name) => {
+    const row = document.createElement("div");
+    row.className = "mix-ctl";
+    const head = document.createElement("strong");
+    head.textContent = name;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = "0.1";
+    input.min = "0";
+    input.max = "680";
+    input.value = "0";
+    input.title = `${name} delay in ms`;
+    const cm = document.createElement("span");
+    cm.textContent = delayCm(0);
+    input.oninput = () => {
+      cm.textContent = delayCm(Number(input.value) || 0);
+    };
+    const btn = document.createElement("button");
+    btn.textContent = "Set";
+    btn.onclick = () => liveApply("/api/delay", { chan: name, ms: Number(input.value) });
+    row.append(head, input, cm, btn);
+    host.appendChild(row);
+  });
+}
+
+function refreshDelays(st) {
+  const host = $("delays");
+  st.outputs.forEach((c, i) => {
+    const row = host.children[i];
+    if (!row) return;
+    const input = row.querySelector("input");
+    input.value = c.delayMs.toFixed(2);
+    row.querySelector("span").textContent = delayCm(c.delayMs);
+  });
+}
+
+buildDelays();
 function fill(sel, items) {
   const cur = $(sel).value;
   $(sel).innerHTML = '<option value="">System default</option>' + items.map((d) => `<option>${d}</option>`).join("");

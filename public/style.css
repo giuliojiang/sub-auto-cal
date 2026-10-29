@@ -142,6 +142,7 @@ canvas { display: block; }
 .mix-ctl input[type="range"] { flex: 1; accent-color: var(--accent); }
 .mix-ctl span { white-space: nowrap; font-size: 0.8rem; color: var(--muted); }
 .mix-ctl input[type="number"] { width: 4.5rem; }
+#delays .mix-ctl { margin-bottom: 0.4rem; }
 #mixer-offline { border: 1px dashed var(--accent-dim); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; color: var(--accent); }
 #mixer-matrix { border-collapse: collapse; margin: 0.4rem 0 0.6rem; font-variant-numeric: tabular-nums; }
 #mixer-matrix th, #mixer-matrix td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: center; }
