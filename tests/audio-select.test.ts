@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { alsaHwId, preferCaptureId, preferPlaybackId } from "../src/audio.ts";
+import { alsaHwId, cleanLabel, preferCaptureId, preferPlaybackId, pulseNames } from "../src/audio.ts";
 
-const ALSA_UMIK = "card 1: U18dB [Umik-1  Gain: 18dB], device 0: USB Audio [USB Audio]";
+const ALSA_UMIK = "card 1: U18dB [Umik-1 Gain: 18dB], device 0: USB Audio [USB Audio]";
 const ALSA_DMIC = "card 0: sofhdadsp [sof-hda-dsp], device 6: DMIC (*) []";
 const PULSE_UMIK = "pulse:alsa_input.usb-miniDSP_Umik-1_Gain__18dB_00002-00.analog-stereo";
 const PULSE_GOOGLE = "pulse:alsa_output.usb-Google_Inc_Headphone_adapter_09SG019BLXTK03WY-00.analog-stereo";
@@ -24,5 +24,12 @@ describe("device auto-select", () => {
   });
   it("maps the UMIK-1 ALSA label to its plughw id", () => {
     assert.equal(alsaHwId(ALSA_UMIK), "plughw:1,0");
+  });
+  it("collapses whitespace so labels survive the option round-trip", () => {
+    assert.equal(cleanLabel("card 1: U18dB [Umik-1  Gain: 18dB], device 0: USB Audio [USB Audio]"), ALSA_UMIK);
+  });
+  it("drops empty pactl rows instead of emitting pulse:undefined", () => {
+    const names = pulseNames("53\tfoo.monitor\ts24\n54\tbar\ts24\n\n");
+    assert.deepEqual(names, ["foo.monitor", "bar"]);
   });
 });

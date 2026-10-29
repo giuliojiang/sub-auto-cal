@@ -20,18 +20,29 @@ function run(cmd: string, args: string[]): Promise<{ code: number; out: string }
   });
 }
 
+export function cleanLabel(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+export function pulseNames(out: string): string[] {
+  return out
+    .split("\n")
+    .map((l) => l.split("\t")[1])
+    .filter((s): s is string => typeof s === "string" && s.length > 0);
+}
+
 export async function listAudioDevices(): Promise<{ playback: string[]; capture: string[] }> {
   const playback: string[] = [];
   const capture: string[] = [];
   const ap = await run("aplay", ["-l"]);
-  if (ap.code === 0) playback.push(...ap.out.split("\n").filter((l) => l.startsWith("card")));
+  if (ap.code === 0) playback.push(...ap.out.split("\n").filter((l) => l.startsWith("card")).map(cleanLabel));
   const ar = await run("arecord", ["-l"]);
-  if (ar.code === 0) capture.push(...ar.out.split("\n").filter((l) => l.startsWith("card")));
+  if (ar.code === 0) capture.push(...ar.out.split("\n").filter((l) => l.startsWith("card")).map(cleanLabel));
   const sinks = await run("pactl", ["list", "short", "sinks"]);
-  if (sinks.code === 0) playback.push(...sinks.out.split("\n").filter(Boolean).map((l) => "pulse:" + l.split("\t")[1]));
+  if (sinks.code === 0) playback.push(...pulseNames(sinks.out).map((s) => "pulse:" + cleanLabel(s)));
   const sources = await run("pactl", ["list", "short", "sources"]);
   if (sources.code === 0)
-    capture.push(...sources.out.split("\n").filter((l) => !l.includes(".monitor")).map((l) => "pulse:" + l.split("\t")[1]));
+    capture.push(...pulseNames(sources.out).filter((s) => !s.includes(".monitor")).map((s) => "pulse:" + cleanLabel(s)));
   return { playback, capture };
 }
 
