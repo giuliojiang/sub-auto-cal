@@ -95,7 +95,8 @@ function diffVsPrev(curr, prev) {
 
 function renderLoop(state) {
   lastLoopState = state;
-  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length} — STOP to apply a row` : state.timeline.length ? "done" : "idle";
+  const doneMsg = state.appliedBest != null ? `done — best iter ${state.appliedBest} live on DSP` : "done";
+  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length} — STOP to apply a row` : state.timeline.length ? doneMsg : "idle";
   drawLoop(state);
   const chanShort = (ch, o) => {
     const f = ch.bands.filter((b) => b.gainDb < -0.05).map((b) => `${b.freqHz.toFixed(0)}/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}`).join(" ") || "—";
@@ -114,7 +115,7 @@ function renderLoop(state) {
   $("loop-best").innerHTML = best
     ? `<pre>best: iter ${best.iter} J=${best.scored.cost.toFixed(2)} (F=${best.scored.flatness.toFixed(2)} loss=${best.scored.loss.toFixed(2)})\n` +
       best.candidate.channels.map((ch, o) => `Out${o + 1}: ${ch.bands.map((b) => `${b.freqHz.toFixed(1)}Hz Q=${b.q.toFixed(2)} ${b.gainDb.toFixed(1)}dB`).join(", ")}  gain ${ch.gainDb.toFixed(1)}dB  delay ${ch.delayMs.toFixed(2)}ms`).join("\n") + `\n` +
-      `${basis}\nRuns against the connected DSP; STOP then Apply a row, or apply / revert from the DSP tab snapshot.</pre>`
+      `${basis}\nBest is applied to the DSP automatically at the end; Apply any row to audition another, or apply / revert from the DSP tab snapshot.</pre>`
     : "";
 }
 

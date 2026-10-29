@@ -131,6 +131,7 @@ export interface LoopSnapshot {
   baseline: Scored | null;
   timeline: TimelineEntry[];
   bestIter: number;
+  appliedBest: number | null;
   cal: CalProvenance | null;
   error: string | null;
 }
@@ -139,6 +140,7 @@ export class LoopRunner {
   running = false;
   timeline: TimelineEntry[] = [];
   baseline: Scored | null = null;
+  appliedBest: number | null = null;
   error: string | null = null;
   private stopAsked = false;
   config: LoopConfig;
@@ -172,6 +174,7 @@ export class LoopRunner {
       baseline: this.baseline,
       bestIter,
       cal: this.timeline.length ? (this.timeline[this.timeline.length - 1]!.cal ?? null) : null,
+      appliedBest: this.appliedBest,
       error: this.error,
       timeline: this.timeline.map((t, i) => ({ ...t, pareto: flags[i] ?? false })),
     };
@@ -227,6 +230,7 @@ export class LoopRunner {
     this.running = true;
     this.stopAsked = false;
     this.error = null;
+    this.appliedBest = null;
     try {
       const dev = this.config.getDevice?.() ?? null;
       if (!dev) throw new Error("connect the DSP or simulator first");
@@ -240,6 +244,7 @@ export class LoopRunner {
       this.timeline.push({ iter: 0, kind: "baseline", candidate: start.candidate, scored: this.baseline, pareto: true, cal: base.prov, response: base.response });
       let best: Candidate = cloneCandidate(start.candidate);
       let bestCost = this.baseline.cost;
+      let bestIterNum = 0;
       for (let iter = 1; (this.config.maxIter <= 0 || iter <= this.config.maxIter) && !this.stopAsked; iter++) {
         const large = isLargeMutation(iter);
         const current = mutateCandidate(best, this.bases, this.config.fStart, this.config.fEnd, large);
@@ -247,9 +252,12 @@ export class LoopRunner {
         if (m.scored.cost < bestCost - IMPROVE_DB) {
           bestCost = m.scored.cost;
           best = cloneCandidate(current);
+          bestIterNum = iter;
         }
         this.timeline.push({ iter, kind: large ? "mutation" : "tweak", candidate: cloneCandidate(current), scored: m.scored, pareto: false, cal: m.prov, response: m.response });
       }
+      await applyCandidate(dev, best, this.types, { settleMs: this.settleMs });
+      this.appliedBest = bestIterNum;
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
     } finally {

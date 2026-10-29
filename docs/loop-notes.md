@@ -32,4 +32,6 @@ Simplifications vs the full product: no mic calibration file in
 this path (results uncalibrated unless one is loaded), no drift
 correction (same-machine playback/capture, onset found by peak
 search), no direction memory beyond revert-to-best, recordings kept
-per iteration under recordings/.
+per iteration under recordings/. When the run ends the
+best-scoring candidate is written back to the DSP automatically;
+any row can still be applied manually afterwards.

@@ -4,7 +4,7 @@ import { DspSimulator } from "../src/dsp/simulator.ts";
 import { DspDevice } from "../src/dsp/device.ts";
 import type { DspLink } from "../src/dsp/link.ts";
 import type { Reply } from "../src/dsp/protocol.ts";
-import { applyCandidate, candidateMismatches, isLargeMutation, makeBaseline } from "../src/measure/loop.ts";
+import { LoopRunner, applyCandidate, candidateMismatches, isLargeMutation, makeBaseline, type TimelineEntry } from "../src/measure/loop.ts";
 import { deviceStateToCandidate, cloneCandidate } from "../src/measure/objective.ts";
 
 class FrozenLink implements DspLink {
@@ -33,6 +33,22 @@ describe("baseline cost", () => {
     assert.equal(b.loss, 0);
     assert.equal(b.mean, -98.5);
     assert.ok(Math.abs(b.cost - 2 * 5.865) < 1e-9, `J=${b.cost}`);
+  });
+});
+
+describe("best selection", () => {
+  it("marks the lowest J beyond the margin as best", async () => {
+    const dev = new DspDevice(new DspSimulator());
+    await dev.connect();
+    const { candidate } = deviceStateToCandidate(await dev.refresh());
+    const entry = (iter: number, cost: number): TimelineEntry => ({
+      iter, kind: "tweak", candidate, scored: { mean: -90, flatness: cost, loss: 0, cost }, pareto: false, cal: null, response: { freqs: [], db: [] },
+    });
+    const runner = new LoopRunner({ fStart: 20, fLowcut: 40, fEnd: 300, sweepSecs: 2, maxIter: 0 });
+    runner.timeline = [entry(0, 5), entry(1, 4.96), entry(2, 4.9)];
+    assert.equal(runner.snapshot().bestIter, 2);
+    runner.timeline = [entry(0, 5), entry(1, 4.96)];
+    assert.equal(runner.snapshot().bestIter, 0);
   });
 });
 
