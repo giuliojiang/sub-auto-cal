@@ -101,6 +101,37 @@ export interface FR {
   db: Float32Array;
 }
 
+export const IR_WINDOW_SECS = 3;
+export const WINDOW_PRE_MS = 40;
+
+function windowedSpectrum(conv: Float32Array, peak: number, sr: number): { re: Float64Array; im: Float64Array; n: number; irLen: number } {
+  const pre = Math.floor((sr * WINDOW_PRE_MS) / 1000);
+  const start = Math.max(0, Math.round(peak) - pre);
+  const ir = conv.slice(start, start + Math.floor(sr * IR_WINDOW_SECS));
+  const fo = Math.max(64, Math.floor(ir.length / 10));
+  for (let i = 0; i < fo; i++) {
+    ir[ir.length - 1 - i]! *= 0.5 - 0.5 * Math.cos((Math.PI * i) / fo);
+  }
+  const n = nextPow2(ir.length * 2);
+  const re = new Float64Array(n);
+  const im = new Float64Array(n);
+  re.set(ir);
+  fft(re, im);
+  const shift = peak - Math.round(peak);
+  if (shift !== 0) {
+    for (let k = 0; k < n; k++) {
+      const ph = (2 * Math.PI * k * shift) / n;
+      const cp = Math.cos(ph);
+      const sp = Math.sin(ph);
+      const a = re[k] as number;
+      const b = im[k] as number;
+      re[k] = a * cp - b * sp;
+      im[k] = a * sp + b * cp;
+    }
+  }
+  return { re, im, n, irLen: ir.length };
+}
+
 export function deconvolveToFR(rec: Float32Array, sweep: Float32Array, inv: Float32Array, sr = MEASURE_RATE): FR {
   const conv = linearConvolve(rec, inv);
   const expected = sweep.length - 1;
@@ -114,30 +145,49 @@ export function deconvolveToFR(rec: Float32Array, sweep: Float32Array, inv: Floa
       onset = i;
     }
   }
-  const pre = Math.floor(sr * 0.002);
-  const start = Math.max(0, onset - pre);
-  const ir = conv.slice(start);
-  for (let i = 0; i < pre && i < ir.length; i++) {
-    ir[i]! *= 0.5 - 0.5 * Math.cos((Math.PI * i) / Math.max(1, pre));
-  }
-  const fo = Math.max(64, Math.floor(ir.length / 10));
-  for (let i = 0; i < fo; i++) {
-    ir[ir.length - 1 - i]! *= 0.5 - 0.5 * Math.cos((Math.PI * i) / fo);
-  }
-  const n = nextPow2(ir.length * 2);
-  const re = new Float64Array(n);
-  const im = new Float64Array(n);
-  re.set(ir);
-  fft(re, im);
+  const { re, im, n, irLen } = windowedSpectrum(conv, onset, sr);
   const half = n / 2;
   const freqs = new Float32Array(half);
   const db = new Float32Array(half);
   for (let i = 0; i < half; i++) {
     freqs[i] = (i * sr) / n;
-    const m = Math.hypot(re[i] as number, im[i] as number) / ir.length;
+    const m = Math.hypot(re[i] as number, im[i] as number) / irLen;
     db[i] = 20 * Math.log10(Math.max(1e-12, m));
   }
   return { freqs, db };
+}
+
+export interface ComplexFR {
+  freqs: Float32Array;
+  re: Float32Array;
+  im: Float32Array;
+  irLen: number;
+  peakOffset: number;
+}
+
+export function deconvolveToComplexIR(rec: Float32Array, sweep: Float32Array, inv: Float32Array, onsetSamples: number, sr = MEASURE_RATE): ComplexFR {
+  const conv = linearConvolve(rec, inv);
+  const peak = onsetSamples + sweep.length - 1;
+  let peakOffset = 0;
+  let best = -1;
+  for (let i = Math.max(0, Math.round(peak) - 1500); i < Math.min(conv.length, Math.round(peak) + 1500); i++) {
+    const v = Math.abs(conv[i] as number);
+    if (v > best) {
+      best = v;
+      peakOffset = i - Math.round(peak);
+    }
+  }
+  const { re, im, n, irLen } = windowedSpectrum(conv, peak, sr);
+  const half = n / 2;
+  const freqs = new Float32Array(half);
+  const cr = new Float32Array(half);
+  const ci = new Float32Array(half);
+  for (let k = 0; k < half; k++) {
+    freqs[k] = (k * sr) / n;
+    cr[k] = (re[k] as number) / irLen;
+    ci[k] = (im[k] as number) / irLen;
+  }
+  return { freqs, re: cr, im: ci, irLen, peakOffset };
 }
 
 export function logGrid(fmin: number, fmax: number, n: number): Float32Array {

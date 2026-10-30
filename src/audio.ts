@@ -85,24 +85,31 @@ export function genPinkNoise(seconds: number, sr = SAMPLE_RATE, peakDbfs = -12):
 }
 
 export function writeWav(path: string, samples: Float32Array, sr = SAMPLE_RATE): void {
-  const n = samples.length;
-  const buf = Buffer.alloc(44 + n * 2);
+  writeWavCh(path, [samples], sr);
+}
+
+export function writeWavCh(path: string, channels: Float32Array[], sr = SAMPLE_RATE): void {
+  const nCh = channels.length;
+  const n = Math.max(...channels.map((c) => c.length));
+  const buf = Buffer.alloc(44 + n * 2 * nCh);
   buf.write("RIFF", 0);
-  buf.writeUInt32LE(36 + n * 2, 4);
+  buf.writeUInt32LE(36 + n * 2 * nCh, 4);
   buf.write("WAVE", 8);
   buf.write("fmt ", 12);
   buf.writeUInt32LE(16, 16);
   buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
+  buf.writeUInt16LE(nCh, 22);
   buf.writeUInt32LE(sr, 24);
-  buf.writeUInt32LE(sr * 2, 28);
-  buf.writeUInt16LE(2, 32);
+  buf.writeUInt32LE(sr * 2 * nCh, 28);
+  buf.writeUInt16LE(2 * nCh, 32);
   buf.writeUInt16LE(16, 34);
   buf.write("data", 36);
-  buf.writeUInt32LE(n * 2, 40);
+  buf.writeUInt32LE(n * 2 * nCh, 40);
   for (let i = 0; i < n; i++) {
-    const v = Math.max(-1, Math.min(1, samples[i] as number));
-    buf.writeInt16LE(Math.round(v * 32767), 44 + i * 2);
+    for (let c = 0; c < nCh; c++) {
+      const v = Math.max(-1, Math.min(1, (channels[c] as Float32Array)[i] ?? 0));
+      buf.writeInt16LE(Math.round(v * 32767), 44 + (i * nCh + c) * 2);
+    }
   }
   writeFileSync(path, buf);
 }
@@ -166,7 +173,7 @@ export function analyzeLevel(samples: Float32Array): LevelReport {
   const rmsDbfs = 20 * Math.log10(Math.max(1e-9, rms));
   let verdict: LevelReport["verdict"] = "OK";
   if (clipped || peakDbfs > -3) verdict = "too high";
-  else if (rmsDbfs < -40) verdict = "too low";
+  else if (rmsDbfs < -50) verdict = "too low";
   return { peakDbfs, rmsDbfs, clipped, verdict };
 }
 
@@ -174,6 +181,25 @@ export async function playWav(path: string, playbackId?: string): Promise<void> 
   const extra = playbackId?.startsWith("pulse:") ? ["--device=" + playbackId.slice(6)] : [];
   const paplay = await run("paplay", [...extra, path]);
   if (paplay.code === 0) return;
+  const ap = await run("aplay", ["-q", path]);
+  if (ap.code !== 0) throw new Error(`no audio player worked (paplay, aplay): ${ap.out.slice(0, 200)}`);
+}
+
+export function writeWavStereo(path: string, left: Float32Array, right: Float32Array, sr = SAMPLE_RATE): void {
+  writeWavCh(path, [left, right], sr);
+}
+
+export async function playStereoWav(path: string, playbackId?: string): Promise<void> {
+  const hw = playbackId ? alsaHwId(playbackId) : null;
+  if (hw) {
+    const ap = await run("aplay", ["-q", "-D", hw, path]);
+    if (ap.code !== 0) throw new Error(`aplay ${hw} failed: ${ap.out.slice(0, 200)}`);
+    return;
+  }
+  const extra = playbackId?.startsWith("pulse:") ? ["--device=" + playbackId.slice(6)] : [];
+  const paplay = await run("paplay", [...extra, path]);
+  if (paplay.code === 0) return;
+  console.warn(`paplay failed, falling back to default aplay; chirp template match may degrade: ${paplay.out.slice(0, 160)}`);
   const ap = await run("aplay", ["-q", path]);
   if (ap.code !== 0) throw new Error(`no audio player worked (paplay, aplay): ${ap.out.slice(0, 200)}`);
 }

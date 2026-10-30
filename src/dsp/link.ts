@@ -100,6 +100,13 @@ export class HidLink implements DspLink {
 
   async command(frame: Uint8Array): Promise<void> {
     return this.enqueue(async () => {
+      if (Date.now() - this.lastOk > 10000) {
+        try {
+          await this.wake();
+        } catch {
+          this.reopen();
+        }
+      }
       this.dev.write([0x00, ...frame]);
       let ack: number[] = [];
       try {
@@ -111,6 +118,8 @@ export class HidLink implements DspLink {
         try {
           this.dev.readTimeout(500);
         } catch {}
+      } else {
+        this.lastOk = Date.now();
       }
     });
   }

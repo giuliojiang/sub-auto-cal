@@ -7,6 +7,7 @@ import { HidLink, findUsbPath } from "./dsp/link.ts";
 import { DspSimulator } from "./dsp/simulator.ts";
 import { listAudioDevices, noiseCheck, playWav, recordWav, writeWav, genPinkNoise, genWhiteNoise, readWav, analyzeLevel, waveform, preferCaptureId, preferPlaybackId, defaultCaptureId, defaultPlaybackId } from "./audio.ts";
 import { LoopRunner } from "./measure/loop.ts";
+import { chirpCheck } from "./measure/surrogate.ts";
 import { parseMicCal, type MicCal, type CalProvenance } from "./measure/miccal.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -245,6 +246,10 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
         captureId: body?.captureId ?? (await defaultCaptureId()),
         getCal: () => micCal,
         getDevice: () => device,
+        v2: body?.v2 === true,
+        warmupSecs: Math.max(0, Math.min(600, Number(body?.warmupSecs ?? 120))),
+        screenBudget: Math.max(100, Math.min(20000, Number(body?.screenBudget ?? 4000))),
+        topK: Math.max(1, Math.min(6, Number(body?.topK ?? 3))),
       });
       void loop.run();
       json(res, 200, { ok: true });
@@ -258,6 +263,31 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse, body: a
   },
   "GET /api/loop/state": async (_req, res) => {
     json(res, 200, loop ? loop.snapshot() : { running: false, timeline: [] });
+  },
+  "POST /api/loop/chirpcheck": async (_req, res, body) => {
+    try {
+      if (!device) throw new Error("connect the DSP or simulator first");
+      if (loop?.running) throw new Error("STOP the loop first");
+      const fStart = Number(body?.fStart ?? 20);
+      const fEnd = Number(body?.fEnd ?? 300);
+      if (!(fStart >= 20 && fEnd <= 20000 && fStart < fEnd)) throw new Error("need 20 <= start < end <= 20000");
+      await device.takeSnapshot();
+      const snapshot = await device.refresh();
+      const result = await chirpCheck(device, {
+        fStart,
+        fEnd,
+        sweepSecs: Math.max(2, Math.min(20, Number(body?.sweepSecs ?? 4))),
+        playbackId: body?.playbackId ?? (await defaultPlaybackId()),
+        captureId: body?.captureId ?? (await defaultCaptureId()),
+        snapshot,
+        getCal: () => micCal,
+        isStopped: () => false,
+        tag: "chirpcheck",
+      });
+      json(res, 200, result);
+    } catch (err) {
+      json(res, 400, { error: String(err) });
+    }
   },
   "POST /api/loop/apply": async (_req, res, body) => {
     try {

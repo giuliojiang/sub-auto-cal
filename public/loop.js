@@ -96,7 +96,14 @@ function diffVsPrev(curr, prev) {
 function renderLoop(state) {
   lastLoopState = state;
   const doneMsg = state.appliedBest != null ? `done — best iter ${state.appliedBest} live on DSP` : "done";
-  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length} — STOP to apply a row` : state.timeline.length ? doneMsg : "idle";
+  const phase = state.running && state.phase ? ` [${state.phase}]` : "";
+  const screened = state.screenedTotal ? ` screened ${state.screenedTotal}` : "";
+  $("loop-status").textContent = state.error ? `stopped: ${state.error}` : state.running ? `running, iter ${state.timeline.length}${phase}${screened} — STOP to apply a row` : state.timeline.length ? doneMsg : "idle";
+  const ops = (state.opStats || []).filter((o) => o.tried > 0);
+  const cons = state.consistency ? `consistency predF ${state.consistency.predF.toFixed(2)} vs measF ${state.consistency.measF.toFixed(2)}` : "";
+  $("loop-v2stats").innerHTML = ops.length || cons
+    ? `<pre>${cons}\n` + ops.map((o) => `${o.name}: tried ${o.tried} improved ${o.improved} weight ${o.weight.toFixed(2)}`).join("\n") + `</pre>`
+    : "";
   drawLoop(state);
   const chanShort = (ch, o) => {
     const f = ch.bands.filter((b) => b.gainDb < -0.05).map((b) => `${b.freqHz.toFixed(0)}/${b.q.toFixed(1)}/${b.gainDb.toFixed(1)}`).join(" ") || "—";
@@ -104,7 +111,8 @@ function renderLoop(state) {
   };
   const rows = state.timeline.map((t, i) => {
     const f = t.candidate.channels.map(chanShort).join(" ");
-    const delta = diffVsPrev(t, i ? state.timeline[i - 1] : null);
+    const pred = t.predJ !== undefined ? `predJ ${t.predJ.toFixed(2)} (F ${t.predF.toFixed(2)}) · ` : "";
+    const delta = pred + diffVsPrev(t, i ? state.timeline[i - 1] : null);
     return `<tr data-iter="${t.iter}"${t.iter === hoverIter ? ' class="lit"' : ""}><td>${t.iter}</td><td>${t.kind}</td><td>${t.pareto ? "★" : ""}</td><td>${t.scored.flatness.toFixed(2)}</td><td>${t.scored.mean.toFixed(1)}</td><td>${t.scored.loss.toFixed(2)}</td><td>${t.scored.cost.toFixed(2)}</td><td>${delta}</td><td>${f}</td><td><button data-apply="${t.iter}"${state.running ? ' disabled title="STOP the loop first"' : ""}>Apply</button></td></tr>`;
   });
   $("loop-timeline").innerHTML = rows.length
@@ -168,13 +176,35 @@ $("btn-go").onclick = async () => {
     fEnd: Number($("loop-fend").value),
     sweepSecs: Number($("loop-secs").value),
     maxIter: Number($("loop-max").value),
+    v2: $("loop-v2").checked,
+    warmupSecs: Number($("loop-warm").value),
+    screenBudget: Number($("loop-budget").value),
+    topK: Number($("loop-topk").value),
     playbackId: $("nz-play").value || undefined,
     captureId: $("nz-cap").value || undefined,
   });
   if (!loopTimer) loopTimer = setInterval(pollLoop, 2000);
   pollLoop();
 };
+$("btn-chirp").onclick = async () => {
+  $("loop-chirp").textContent = "chirp check running…";
+  try {
+    const r = await post("/api/loop/chirpcheck", {
+      fStart: Number($("loop-fstart").value),
+      fEnd: Number($("loop-fend").value),
+      sweepSecs: Number($("loop-secs").value),
+      playbackId: $("nz-play").value || undefined,
+      captureId: $("nz-cap").value || undefined,
+    });
+    $("loop-chirp").textContent = `anchor ${Math.round(r.anchor)} peak ${r.peak.toExponential(2)} ratio ${r.marginRatio.toFixed(1)} (${r.marginDb.toFixed(0)} dB) latency ${r.latencyMs.toFixed(1)} ms peqs ${r.peqs}`;
+  } catch (err) {
+    $("loop-chirp").textContent = `chirp check failed: ${err.message}`;
+  }
+};
 $("btn-stop").onclick = async () => {
   await post("/api/loop/stop");
   pollLoop();
 };
+pollLoop().then(() => {
+  if (lastLoopState?.running && !loopTimer) loopTimer = setInterval(pollLoop, 2000);
+});

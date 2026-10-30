@@ -199,12 +199,19 @@
         <label>Goal end Hz <input id="loop-fend" type="number" step="any" value="300"></label>
         <label>Sweep s <input id="loop-secs" type="number" min="2" max="20" value="4"></label>
         <label>Iters, 0 = until STOP <input id="loop-max" type="number" min="0" max="200" value="0"></label>
+        <label title="V2: screen candidates on the surrogate model from per-output measurements, verify the best few for real. Off: legacy combined-only loop."><input id="loop-v2" type="checkbox" checked> V2 surrogate</label>
+        <label title="Warm-up sweeps before the baseline (0 = skip)">Warmup s <input id="loop-warm" type="number" min="0" max="600" value="120"></label>
+        <label title="Candidates screened per round (V2)">Screened <input id="loop-budget" type="number" min="100" max="20000" step="100" value="4000"></label>
+        <label title="Top screened candidates measured per round (V2)">Top K <input id="loop-topk" type="number" min="1" max="6" value="3"></label>
         <button id="btn-go" class="primary">GO</button>
         <button id="btn-stop" class="danger">STOP</button>
+        <button id="btn-chirp" title="Chirp-only diagnostic: can the mic hear sub 1's chirp, and can the detector find it?">Chirp check</button>
         <span id="loop-status">idle</span>
       </div>
+      <div id="loop-chirp"></div>
       <canvas id="loop-graph" width="800" height="220"></canvas>
       <div id="loop-best"></div>
+      <div id="loop-v2stats"></div>
       <div id="loop-timeline"></div>
     </section>
   </div>
