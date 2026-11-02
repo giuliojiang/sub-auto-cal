@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { logGrid } from "../src/measure/sweep.ts";
+import { logGrid, smoothOctave } from "../src/measure/sweep.ts";
 import {
   YAMAHA_FREQS,
   YAMAHA_QS,
@@ -13,6 +13,7 @@ import {
   scorePrediction,
   predictCurve,
   throwOnSerialMismatch,
+  zeroMeanOverFit,
   STRATEGIES,
 } from "../src/measure/yamaha.ts";
 import { parseMicCal } from "../src/measure/miccal.ts";
@@ -100,6 +101,38 @@ describe("yamaha candidates offline", () => {
     for (let i = 1; i < cands.length; i++) {
       assert.ok((cands[i] as { rms: number }).rms >= (cands[i - 1] as { rms: number }).rms - 1e-9);
     }
+  });
+});
+
+describe("low-level conditioning", () => {
+  it("keeps response shape instead of flooring at -120dB", () => {
+    const grid = logGrid(20, 20000, 480);
+    const shaped = Float32Array.from(
+      grid,
+      (f) => -130 + (8 * Math.log2((f as number) / 1000)) / Math.log2(20) + 6 * Math.exp(-((Math.log2((f as number) / 340)) ** 2) / 0.02),
+    );
+    const out = smoothOctave(grid, zeroMeanOverFit(grid, shaped), 1 / 12);
+    const at = (f: number): number => {
+      let bi = 0;
+      let bd = Infinity;
+      for (let i = 0; i < grid.length; i++) {
+        const d = Math.abs((grid[i] as number) - f);
+        if (d < bd) {
+          bd = d;
+          bi = i;
+        }
+      }
+      return out[bi] as number;
+    };
+    assert.ok(at(340) - at(100) > 2, `bump lost: 340Hz ${at(340)} vs 100Hz ${at(100)}`);
+    assert.ok(at(20000) - at(20) > 10, `slope lost: 20kHz ${at(20000)} vs 20Hz ${at(20)}`);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const v of out) {
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    assert.ok(hi - lo > 8, `flat output, span ${hi - lo}`);
   });
 });
 

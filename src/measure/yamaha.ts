@@ -78,6 +78,16 @@ export function fitMask(grid: Float32Array | number[]): number[] {
   return idx;
 }
 
+export function zeroMeanOverFit(grid: Float32Array | number[], db: Float32Array | number[]): Float32Array {
+  const mask = fitMask(grid);
+  let sum = 0;
+  for (const i of mask) sum += db[i] as number;
+  const mean = mask.length ? sum / mask.length : 0;
+  const out = Float32Array.from(db as ArrayLike<number>);
+  for (let i = 0; i < out.length; i++) out[i]! -= mean;
+  return out;
+}
+
 export function anchorTarget(
   grid: Float32Array | number[],
   measuredDb: Float32Array | number[],

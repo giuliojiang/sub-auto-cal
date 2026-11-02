@@ -29,6 +29,7 @@ import {
   uncorrectedScore,
   outputGrid,
   throwOnSerialMismatch,
+  zeroMeanOverFit,
 } from "./measure/yamaha.ts";
 import { renderYamahaViewer } from "./measure/yamaha-viewer.ts";
 
@@ -129,9 +130,11 @@ if (synthetic) {
   const { samples } = readWav(recFile);
   const inv = inverseESS(sweep, 20, 20000, sweepSecs);
   const fr = deconvolveToFR(samples, sweep, inv);
-  const interp = interpLog(fr, grid);
-  const smoothed = smoothOctave(grid, interp, 1 / 12);
-  measuredDb = applyCal(grid, smoothed, cal);
+  const fine = logGrid(20, 20000, 480);
+  const interpFine = interpLog(fr, fine);
+  const smoothedFine = smoothOctave(fine, zeroMeanOverFit(fine, interpFine), 1 / 12);
+  const calFine = applyCal(fine, smoothedFine, cal);
+  measuredDb = interpLog({ freqs: fine, db: calFine }, grid);
   recKept = recFile;
   const wavCopy = join(outDir, "rec-kept.wav");
   try {
