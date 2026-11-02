@@ -14,6 +14,7 @@ import {
   predictCurve,
   throwOnSerialMismatch,
   zeroMeanOverFit,
+  stereoStimulus,
   STRATEGIES,
 } from "../src/measure/yamaha.ts";
 import { parseMicCal } from "../src/measure/miccal.ts";
@@ -101,6 +102,19 @@ describe("yamaha candidates offline", () => {
     for (let i = 1; i < cands.length; i++) {
       assert.ok((cands[i] as { rms: number }).rms >= (cands[i - 1] as { rms: number }).rms - 1e-9);
     }
+  });
+});
+
+describe("stereo stimulus", () => {
+  it("puts the sweep on the requested channel and silence on the other", () => {
+    const sweep = Float32Array.from([0.1, -0.2, 0.3]);
+    const ref = [...sweep];
+    const l = stereoStimulus(sweep, "left");
+    assert.deepEqual([...l.left], ref);
+    assert.deepEqual([...l.right], [0, 0, 0]);
+    const r = stereoStimulus(sweep, "right");
+    assert.deepEqual([...r.left], [0, 0, 0]);
+    assert.deepEqual([...r.right], ref);
   });
 });
 

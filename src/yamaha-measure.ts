@@ -30,6 +30,7 @@ import {
   outputGrid,
   throwOnSerialMismatch,
   zeroMeanOverFit,
+  stereoStimulus,
 } from "./measure/yamaha.ts";
 import { renderYamahaViewer } from "./measure/yamaha-viewer.ts";
 
@@ -65,6 +66,12 @@ if (!micCalPath) {
 const sweepSecs = Math.max(2, Math.min(30, Number(arg("--sweep-secs") ?? "10") || 10));
 const seed = Number(arg("--seed") ?? "1") || 1;
 const samples = Math.max(100, Math.min(200000, Number(arg("--samples") ?? "20000") || 20000));
+const channelArg = (arg("--channel") ?? "left").toLowerCase();
+if (channelArg !== "left" && channelArg !== "right") {
+  console.error("channel must be left or right");
+  process.exit(1);
+}
+const channel = channelArg as "left" | "right";
 const stratArg = arg("--strategies");
 const wanted = stratArg ? stratArg.split(",").map((s) => s.trim()).filter(Boolean) : [...STRATEGIES];
 for (const s of wanted) {
@@ -118,9 +125,9 @@ if (synthetic) {
   console.log(`noise check: peak ${lvl.peakDbfs.toFixed(1)} dBFS rms ${lvl.rmsDbfs.toFixed(1)} dBFS verdict ${lvl.verdict}`);
   if (lvl.verdict === "too high") console.log("warning: input level high; continuing without gating");
   const sweep = genESS(20, 20000, sweepSecs);
-  const silence = new Float32Array(sweep.length);
   const stimFile = join(outDir, "sweep.wav");
-  writeWavStereo(stimFile, sweep, silence);
+  const stim = stereoStimulus(sweep, channel);
+  writeWavStereo(stimFile, stim.left, stim.right);
   const recFile = join(outDir, "rec.wav");
   const tailSecs = sweepSecs + 2.0;
   const recP = recordWav(recFile, tailSecs, 48000, captureId);
@@ -162,6 +169,7 @@ const json = {
     micSerial: cal.serial,
     micFile: micCalPath.split("/").pop() ?? micCalPath,
     sweepSecs,
+    channel,
     fitRange: [20, 16000] as [number, number],
     uncorrectedRms: base.rms,
     strategies: wanted,

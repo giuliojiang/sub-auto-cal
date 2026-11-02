@@ -599,6 +599,13 @@ export function outputGrid(n = OUTPUT_N): Float32Array {
   return logGrid(20, 20000, n);
 }
 
+export type YamahaChannel = "left" | "right";
+
+export function stereoStimulus(sweep: Float32Array, channel: YamahaChannel): { left: Float32Array; right: Float32Array } {
+  const silence = new Float32Array(sweep.length);
+  return channel === "right" ? { left: silence, right: sweep } : { left: sweep, right: silence };
+}
+
 export function throwOnSerialMismatch(warnings: string[]): void {
   if (warnings.some((w) => /serial mismatch/i.test(w))) {
     throw new Error(warnings.find((w) => /serial mismatch/i.test(w)) as string);

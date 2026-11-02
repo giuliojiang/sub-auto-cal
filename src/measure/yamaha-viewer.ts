@@ -15,6 +15,7 @@ export interface ViewerData {
     micSerial: string;
     micFile: string;
     sweepSecs: number;
+    channel?: string;
     fitRange: [number, number];
     uncorrectedRms: number;
     strategies: string[];
@@ -62,7 +63,7 @@ section{margin-top:28px}
 </head>
 <body>
 <h1>Yamaha manual-PEQ candidates</h1>
-<p>Date ${esc(data.run.date)} · mic ${esc(data.run.micSerial)} (${esc(data.run.micFile)}) · sweep ${data.run.sweepSecs}s · fit ${data.run.fitRange[0]}–${data.run.fitRange[1]} Hz · uncorrected RMS ${data.run.uncorrectedRms.toFixed(2)} dB · seed ${data.run.seed} · samples ${data.run.samples}</p>
+<p>Date ${esc(data.run.date)} · mic ${esc(data.run.micSerial)} (${esc(data.run.micFile)}) · sweep ${data.run.sweepSecs}s${data.run.channel ? ` · ch ${esc(data.run.channel)}` : ""} · fit ${data.run.fitRange[0]}–${data.run.fitRange[1]} Hz · uncorrected RMS ${data.run.uncorrectedRms.toFixed(2)} dB · seed ${data.run.seed} · samples ${data.run.samples}</p>
 <h2>Summary (sorted by predicted residual RMS)</h2>
 <table><thead><tr><th>Strategy</th><th>Bands</th><th>RMS dB</th><th>Max abs dB</th><th>Max boost dB</th><th>Converged</th></tr></thead><tbody>${rows}</tbody></table>
 <h2>Overview — all predicted curves plus anchored target</h2>
