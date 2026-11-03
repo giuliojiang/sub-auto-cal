@@ -8,7 +8,8 @@
     "start": "node src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
-    "yamaha": "node src/yamaha-measure.ts"
+    "yamaha": "node src/yamaha-measure.ts",
+    "amp": "node src/amp-measure.ts"
   },
   "dependencies": {
     "node-hid": "^3.0.0"
